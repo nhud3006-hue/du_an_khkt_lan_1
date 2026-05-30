@@ -2,346 +2,526 @@ import streamlit as st
 from groq import Groq
 import datetime
 import os
-import glob
+import json
+import hashlib
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 from datetime import datetime as dt, timedelta
+import re
 
-# ========== CẤU HÌNH TRANG ==========
-st.set_page_config(
-    page_title="InnoMine Pro - Robot đồng hành",
-    page_icon="🤖",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
-# ========== CSS TÙY CHỈNH ==========
+# ==================== CẤU HÌNH TRANG ====================
+st.set_page_config(page_title="InnoMine-X", page_icon="🧠", layout="wide")
 st.markdown("""
 <style>
-    .main-header {
+    @import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;400;500;600;700&display=swap');
+    * { font-family: 'Inter', sans-serif; }
+    .stApp { background: linear-gradient(135deg, #F8FAFF 0%, #EEF2FF 100%); }
+    header, footer { visibility: hidden; }
+    .main-title {
+        font-size: 2.5rem;
+        font-weight: 700;
+        background: linear-gradient(135deg, #1E3A8A, #3B82F6);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
         text-align: center;
-        color: #4A90E2;
-        font-size: 3rem;
-        margin-bottom: 0;
     }
-    .sub-header {
-        text-align: center;
-        font-size: 1.2rem;
-        color: #666;
-        margin-top: 0;
+    .glass-card {
+        background: rgba(255,255,255,0.9);
+        backdrop-filter: blur(2px);
+        border-radius: 32px;
+        padding: 1.5rem;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.02);
+        border: 1px solid rgba(255,255,255,0.5);
     }
-    .journal-card {
-        background-color: #f9f9ff;
-        border-radius: 20px;
-        padding: 15px;
-        margin-bottom: 15px;
-        box-shadow: 2px 2px 6px rgba(0,0,0,0.05);
+    .journal-entry {
+        background: white;
+        border-radius: 24px;
+        padding: 1rem;
+        margin-bottom: 0.8rem;
+        border-left: 4px solid #3B82F6;
+        transition: 0.15s;
     }
-    .edit-mode {
-        background-color: #fff8e7;
-        border-left: 5px solid #FFA500;
+    .stButton button {
+        border-radius: 40px !important;
+        background: #3B82F6 !important;
+        color: white !important;
+        font-weight: 600 !important;
+        border: none !important;
     }
+    .stButton button:hover { background: #2563EB !important; transform: scale(1.02); }
+    .warning-green { background: #D1FAE5; border-left: 6px solid #10B981; padding: 0.75rem; border-radius: 16px; margin: 0.5rem 0; }
+    .warning-yellow { background: #FEF3C7; border-left: 6px solid #F59E0B; padding: 0.75rem; border-radius: 16px; margin: 0.5rem 0; }
+    .warning-orange { background: #FFEDD5; border-left: 6px solid #EA580C; padding: 0.75rem; border-radius: 16px; margin: 0.5rem 0; }
+    .warning-red { background: #FEE2E2; border-left: 6px solid #DC2626; padding: 0.75rem; border-radius: 16px; margin: 0.5rem 0; }
 </style>
 """, unsafe_allow_html=True)
 
-# ========== KHỞI TẠO GROQ (XỬ LÝ LỖI) ==========
+# ==================== GLOBAL CONSTANTS ====================
+MOOD_SCORE = {"😢 Buồn": 2, "😐 Bình thường": 5, "😊 Vui vẻ": 8, "🤔 Suy tư": 6, "😎 Tự tin": 9, "✨ Hy vọng": 9}
+STRESS_KEYWORDS = ["stress", "áp lực", "mệt mỏi", "căng thẳng", "lo lắng", "mất ngủ", "cô đơn", "buồn"]
+
+# ==================== HASH MẬT KHẨU ====================
+def hash_password(pwd):
+    return hashlib.sha256(pwd.encode()).hexdigest()
+
+# ==================== QUẢN LÝ USER ====================
+USER_FILE = "users.json"
+if not os.path.exists(USER_FILE):
+    with open(USER_FILE, "w") as f:
+        json.dump({"minh": hash_password("123"), "lan": hash_password("456"), "huy": hash_password("789")}, f)
+
+def load_users():
+    with open(USER_FILE, "r") as f:
+        return json.load(f)
+def save_users(users):
+    with open(USER_FILE, "w") as f:
+        json.dump(users, f)
+def authenticate(u, p):
+    users = load_users()
+    return users.get(u) == hash_password(p)
+def register_user(u, p):
+    users = load_users()
+    if u in users:
+        return False
+    users[u] = hash_password(p)
+    save_users(users)
+    return True
+def get_all_users():
+    return list(load_users().keys())
+
+# ==================== BẠN BÈ & CHIA SẺ ====================
+def get_friends(u):
+    fname = f"{u}_friends.json"
+    if os.path.exists(fname):
+        with open(fname, "r") as f:
+            return json.load(f)
+    return []
+def add_friend(u, f):
+    friends = get_friends(u)
+    if f not in friends:
+        friends.append(f)
+        with open(f"{u}_friends.json", "w") as fo:
+            json.dump(friends, fo)
+def get_requests(u):
+    fname = f"{u}_requests.json"
+    if os.path.exists(fname):
+        with open(fname, "r") as f:
+            return json.load(f)
+    return []
+def send_request(fr, to):
+    if fr == to: return False
+    if to in get_friends(fr): return False
+    reqs = get_requests(to)
+    if fr in reqs: return False
+    reqs.append(fr)
+    with open(f"{to}_requests.json", "w") as f:
+        json.dump(reqs, f)
+    return True
+def accept_request(u, req):
+    reqs = get_requests(u)
+    if req in reqs:
+        reqs.remove(req)
+        with open(f"{u}_requests.json", "w") as f:
+            json.dump(reqs, f)
+        add_friend(u, req)
+        add_friend(req, u)
+        return True
+    return False
+def get_shared_posts(u):
+    fname = f"{u}_shared.json"
+    if os.path.exists(fname):
+        with open(fname, "r") as f:
+            return json.load(f)
+    return []
+def add_shared_post(u, post):
+    posts = get_shared_posts(u)
+    posts.insert(0, post)
+    with open(f"{u}_shared.json", "w") as f:
+        json.dump(posts[:20], f)
+
+# ==================== NHẬT KÝ & MỤC TIÊU ====================
+def load_journal(u):
+    fname = f"{u}_journal.json"
+    if os.path.exists(fname):
+        with open(fname, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return []
+def save_journal(u, data):
+    with open(f"{u}_journal.json", "w", encoding="utf-8") as f:
+        json.dump(data, f)
+def add_entry(u, entry):
+    data = load_journal(u)
+    data.append(entry)
+    save_journal(u, data)
+
+def load_goals(u):
+    fname = f"{u}_goals.json"
+    if os.path.exists(fname):
+        with open(fname, "r") as f:
+            return json.load(f)
+    return []
+def save_goals(u, goals):
+    with open(f"{u}_goals.json", "w") as f:
+        json.dump(goals, f)
+
+# ==================== MEMORY ENGINE ====================
+def load_memory(u):
+    fname = f"{u}_memory.json"
+    if os.path.exists(fname):
+        with open(fname, "r") as f:
+            return json.load(f)
+    return []
+def save_memory(u, memory):
+    with open(f"{u}_memory.json", "w") as f:
+        json.dump(memory, f)
+def add_memory(u, event):
+    mem = load_memory(u)
+    mem.append({"date": dt.now().isoformat(), "event": event})
+    save_memory(u, mem[-20:])  # giữ 20 sự kiện gần nhất
+
+# ==================== TÍNH TOÁN PGI ====================
+def compute_pgi(user):
+    journal = load_journal(user)
+    if len(journal) < 3:
+        return None, {}
+    # Emotional Stability
+    scores = [MOOD_SCORE.get(e.get("mood", "😐 Bình thường"), 5) for e in journal[-10:]]
+    if len(scores) > 1:
+        emotional_stability = 100 - min(100, (max(scores)-min(scores)) * 10)
+    else:
+        emotional_stability = 50
+    # Consistency
+    recent_days = set()
+    for e in journal[-14:]:
+        recent_days.add(e["date"][:10])
+    consistency = (len(recent_days) / 14) * 100
+    # Goal Completion
+    goals = load_goals(user)
+    if goals:
+        goal_completion = sum([g["progress"] for g in goals]) / len(goals)
+    else:
+        goal_completion = 0
+    # Positive Engagement
+    positive_moods = ["😊 Vui vẻ", "😎 Tự tin", "✨ Hy vọng"]
+    recent_7 = journal[-7:]
+    if recent_7:
+        positive_count = sum(1 for e in recent_7 if e.get("mood") in positive_moods)
+        positive_engagement = (positive_count / len(recent_7)) * 100
+    else:
+        positive_engagement = 0
+    pgi = emotional_stability * 0.25 + consistency * 0.25 + goal_completion * 0.3 + positive_engagement * 0.2
+    pgi = round(pgi, 1)
+    components = {
+        "Emotional Stability": round(emotional_stability, 1),
+        "Consistency": round(consistency, 1),
+        "Goal Completion": round(goal_completion, 1),
+        "Positive Engagement": round(positive_engagement, 1)
+    }
+    return pgi, components
+
+# ==================== EARLY WARNING + PHÂN TÍCH NỘI DUNG ====================
+def analyze_content(content):
+    content_lower = content.lower()
+    stress_score = 0
+    for kw in STRESS_KEYWORDS:
+        if kw in content_lower:
+            stress_score += 1
+    return stress_score
+
+def early_warning_level(user):
+    journal = load_journal(user)
+    if len(journal) < 5:
+        return "🟢 Xanh", "Chưa đủ dữ liệu", "green"
+    negative_moods = ["😢 Buồn"]
+    recent = journal[-10:]
+    mood_neg = sum(1 for e in recent if e.get("mood") in negative_moods)
+    content_stress = sum(analyze_content(e.get("content", "")) for e in recent)
+    # Kết hợp mood và stress content
+    risk_score = (mood_neg / len(recent)) * 100 + min(50, content_stress * 10)
+    if risk_score >= 70:
+        return "🔴 Đỏ", "Nguy cơ cao - Can thiệp ngay", "red"
+    elif risk_score >= 50:
+        return "🟠 Cam", "Nguy cơ trung bình - Theo dõi sát", "orange"
+    elif risk_score >= 25:
+        return "🟡 Vàng", "Nguy cơ nhẹ - Quan sát thêm", "yellow"
+    else:
+        return "🟢 Xanh", "Ổn định", "green"
+
+# ==================== ROBOT COMPANION ====================
+if "robot_led" not in st.session_state:
+    st.session_state.robot_led = False
+def robot_alert(level):
+    if level == "red":
+        st.session_state.robot_led = True
+    else:
+        st.session_state.robot_led = False
+
+# ==================== GROQ ====================
 if "GROQ_API_KEY" in st.secrets:
     try:
         client = Groq(api_key=st.secrets["GROQ_API_KEY"])
-        # Kiểm tra nhanh model (chỉ in ra log nếu cần)
-        st.cache_data.clear()
-    except Exception as e:
-        st.error(f"⚠️ Lỗi khởi tạo Groq: {e}")
+    except:
+        st.error("⚠️ Lỗi kết nối AI.")
         st.stop()
 else:
-    st.error("⚠️ Thiếu API Key. Vui lòng thêm GROQ_API_KEY vào Secrets (Settings → Secrets).")
+    st.error("⚠️ Thiếu GROQ_API_KEY.")
     st.stop()
 
-# ========== QUẢN LÝ USER & MẬT KHẨU ==========
-USER_FILE = "users.txt"
-
-def init_users():
-    if not os.path.exists(USER_FILE):
-        with open(USER_FILE, "w", encoding="utf-8") as f:
-            f.write("minh:123\nlan:456\nhuy:789\n")
-
-def authenticate(username, password):
-    init_users()
-    with open(USER_FILE, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            u, p = line.split(":", 1)
-            if u == username and p == password:
-                return True
-    return False
-
-def register_user(username, password):
-    init_users()
-    with open(USER_FILE, "r", encoding="utf-8") as f:
-        existing = [line.split(":", 1)[0] for line in f.read().splitlines() if line]
-    if username in existing:
-        return False
-    with open(USER_FILE, "a", encoding="utf-8") as f:
-        f.write(f"{username}:{password}\n")
-    return True
-
-# ========== QUẢN LÝ NHẬT KÝ ==========
-def get_journal_file(username):
-    return f"{username}_nhatky.txt"
-
-def load_journal(username):
-    fname = get_journal_file(username)
-    if os.path.exists(fname):
-        with open(fname, "r", encoding="utf-8") as f:
-            return [line.rstrip("\n") for line in f.readlines() if line.strip()]
-    return []
-
-def save_all_journal(username, lines):
-    fname = get_journal_file(username)
-    with open(fname, "w", encoding="utf-8") as f:
-        for line in lines:
-            f.write(line + "\n")
-
-def append_journal(username, entry_line):
-    fname = get_journal_file(username)
-    with open(fname, "a", encoding="utf-8") as f:
-        f.write(entry_line + "\n")
-
-def get_all_users():
-    init_users()
-    users = []
-    with open(USER_FILE, "r", encoding="utf-8") as f:
-        for line in f:
-            if line.strip():
-                users.append(line.split(":", 1)[0])
-    return sorted(users)
-
-# ========== XỬ LÝ ĐĂNG NHẬP ==========
+# ==================== ĐĂNG NHẬP ====================
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
     st.session_state.username = ""
 
 if not st.session_state.logged_in:
-    st.markdown("<h1 class='main-header'>🤖 InnoMine Pro</h1>", unsafe_allow_html=True)
-    st.markdown("<p class='sub-header'>Robot đồng hành – Phát hiện điểm mạnh & Hỗ trợ tâm lý</p>", unsafe_allow_html=True)
-    col1, col2, col3 = st.columns([1, 2, 1])
+    col1, col2, col3 = st.columns([1,2,1])
     with col2:
-        st.image("https://cdn-icons-png.flaticon.com/512/4712/4712035.png", width=180)
-        option = st.radio("Bạn muốn:", ["🔐 Đăng nhập", "🆕 Tạo tài khoản mới"])
-        
+        st.markdown("<h1 class='main-title'>🧠 InnoMine-X</h1>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align:center'>Hệ thống AI & Robot đồng hành hỗ trợ sức khỏe tinh thần học sinh</p>", unsafe_allow_html=True)
+        option = st.radio("", ["🔐 Đăng nhập", "🆕 Đăng ký"])
         if option == "🔐 Đăng nhập":
-            all_users = get_all_users()
-            if not all_users:
-                st.info("Chưa có tài khoản nào. Hãy chọn 'Tạo tài khoản mới'.")
-            else:
-                selected_user = st.selectbox("Tên đăng nhập", all_users)
-                password = st.text_input("Mật khẩu", type="password")
-                if st.button("🚪 Đăng nhập", use_container_width=True):
-                    if authenticate(selected_user, password):
-                        st.session_state.logged_in = True
-                        st.session_state.username = selected_user
-                        st.rerun()
-                    else:
-                        st.error("❌ Sai mật khẩu.")
-        else:
-            new_user = st.text_input("Tên tài khoản mới (chữ thường, không dấu)")
-            new_pass = st.text_input("Mật khẩu", type="password")
-            confirm_pass = st.text_input("Xác nhận mật khẩu", type="password")
-            if st.button("📝 Đăng ký & Đăng nhập", use_container_width=True):
-                if not new_user or not new_pass:
-                    st.error("Vui lòng nhập đầy đủ.")
-                elif new_pass != confirm_pass:
-                    st.error("Mật khẩu không khớp.")
-                elif not new_user.isalnum() or " " in new_user:
-                    st.error("Tên chỉ gồm chữ và số, không khoảng trắng.")
-                elif register_user(new_user, new_pass):
+            u = st.text_input("Tên đăng nhập")
+            p = st.text_input("Mật khẩu", type="password")
+            if st.button("Đăng nhập", use_container_width=True):
+                if authenticate(u, p):
                     st.session_state.logged_in = True
-                    st.session_state.username = new_user
+                    st.session_state.username = u
                     st.rerun()
                 else:
-                    st.error("Tên đã tồn tại.")
+                    st.error("Sai tên hoặc mật khẩu.")
+        else:
+            u = st.text_input("Tên mới")
+            p = st.text_input("Mật khẩu", type="password")
+            c = st.text_input("Xác nhận mật khẩu", type="password")
+            if st.button("Đăng ký", use_container_width=True):
+                if u and p and p == c and u.isalnum():
+                    if register_user(u, p):
+                        st.session_state.logged_in = True
+                        st.session_state.username = u
+                        st.rerun()
+                    else:
+                        st.error("Tên đã tồn tại.")
+                else:
+                    st.error("Thông tin không hợp lệ.")
     st.stop()
 
-# ========== ĐÃ ĐĂNG NHẬP ==========
 user = st.session_state.username
-default_avatars = ["🤖", "😊", "🌟", "🐱", "🐶", "🦊", "🐼", "🐨", "🐸", "🐙"]
-avatar = default_avatars[abs(hash(user)) % len(default_avatars)]
+avatar = "🧠"
 
-col1, col2, col3 = st.columns([1, 6, 1])
-with col1:
-    st.markdown(f"<h1 style='font-size:70px;'>{avatar}</h1>", unsafe_allow_html=True)
-with col2:
-    st.markdown(f"<h1 style='margin-bottom:0;'>Xin chào, {user}!</h1>", unsafe_allow_html=True)
-    st.caption("InnoMine – Người bạn đồng hành lắng nghe và thấu hiểu")
-with col3:
-    if st.button("🚪 Đăng xuất"):
-        st.session_state.logged_in = False
-        st.rerun()
-
-# Sidebar
-st.sidebar.markdown(f"## 👤 {avatar} {user}")
+# ==================== GIAO DIỆN CHÍNH ====================
+st.sidebar.markdown(f"### {avatar} {user}")
 st.sidebar.markdown("---")
-all_users = get_all_users()
-friends = [u for u in all_users if u != user]
+
+# KẾT BẠN
+with st.sidebar.expander("➕ Kết bạn"):
+    all_u = get_all_users()
+    friends = get_friends(user)
+    candidates = [u for u in all_u if u != user and u not in friends]
+    if candidates:
+        target = st.selectbox("Chọn người dùng", candidates)
+        if st.button("📨 Gửi lời mời"):
+            send_request(user, target)
+            st.success(f"Đã gửi mời đến {target}!")
+    else:
+        st.info("Không có người dùng mới.")
+
+reqs = get_requests(user)
+if reqs:
+    st.sidebar.markdown("### ✉️ Lời mời đến")
+    for r in reqs:
+        col1, col2 = st.sidebar.columns([3,1])
+        col1.write(r)
+        if col2.button("✅", key=f"acc_{r}"):
+            accept_request(user, r)
+            st.rerun()
+
+st.sidebar.markdown("### 👥 Bạn bè")
+friends = get_friends(user)
 if friends:
-    friend_choice = st.sidebar.selectbox("👥 Xem nhật ký của bạn bè", ["Chính tôi"] + friends)
-    viewing_user = user if friend_choice == "Chính tôi" else friend_choice
+    for f in friends:
+        st.sidebar.write(f"• {f}")
 else:
-    viewing_user = user
-    st.sidebar.info("Chưa có bạn bè nào. Hãy khuyến khích bạn tạo tài khoản!")
+    st.sidebar.info("Chưa có bạn bè.")
 
-st.sidebar.markdown("---")
-if st.sidebar.button("📥 Xuất nhật ký của tôi (TXT)"):
-    my_journal = load_journal(user)
-    if my_journal:
-        export_content = "\n".join(my_journal)
-        st.sidebar.download_button(
-            label="📁 Tải file xuống",
-            data=export_content,
-            file_name=f"{user}_nhatky.txt",
-            mime="text/plain"
-        )
-    else:
-        st.sidebar.warning("Bạn chưa có nhật ký nào.")
+# ==================== DASHBOARD ====================
+st.markdown(f"<h1 class='main-title'>Chào {user} 👋</h1>", unsafe_allow_html=True)
+pgi, pgi_components = compute_pgi(user)
+warning_text, warning_desc, warning_color = early_warning_level(user)
+robot_alert(warning_color)
 
-st.sidebar.info("📌 **Lưu ý:** Dữ liệu được lưu tạm thời trên máy chủ. Hãy xuất nhật ký thường xuyên để tránh mất khi hệ thống khởi động lại.")
+colA, colB, colC = st.columns(3)
+colA.metric("📈 Chỉ số PGI", f"{pgi}/100" if pgi else "Chưa đủ dữ liệu")
+colB.metric("⚠️ Cảnh báo sớm", warning_text, delta=warning_desc)
+colC.metric("🎭 Cảm xúc hôm nay", "Chưa ghi")
 
-# ========== PHẦN CHÍNH: GHI NHẬT KÝ ==========
-st.markdown("---")
-left, right = st.columns([2, 1])
+if pgi_components:
+    with st.expander("🔍 4 thành phần PGI (đề xuất bởi nhóm nghiên cứu)"):
+        for k, v in pgi_components.items():
+            st.progress(v/100, text=f"{k}: {v}/100")
 
-with left:
-    st.subheader(f"📝 Nhật ký hôm nay – {viewing_user}")
-    with st.form("entry_form"):
-        work = st.text_area("✨ Hôm nay bạn đã làm những gì?", placeholder="Ví dụ: học toán, đá bóng, nấu cơm...", height=120)
-        mood = st.select_slider("🎭 Cảm xúc của bạn", options=["😢 Buồn", "😐 Bình thường", "😊 Vui vẻ", "🤔 Suy tư", "😎 Tự tin", "✨ Hy vọng"])
-        submitted = st.form_submit_button("💾 Lưu & Phân tích", use_container_width=True)
+if warning_color == "red":
+    st.markdown(f"<div class='warning-red'><strong>⚠️ CẢNH BÁO ĐỎ:</strong> {warning_desc}<br>🤖 Robot sẽ nhấp nháy. Hãy trò chuyện với AI hoặc tìm sự hỗ trợ.</div>", unsafe_allow_html=True)
+elif warning_color == "orange":
+    st.markdown(f"<div class='warning-orange'><strong>⚠️ CẢNH BÁO CAM:</strong> {warning_desc}</div>", unsafe_allow_html=True)
+elif warning_color == "yellow":
+    st.markdown(f"<div class='warning-yellow'><strong>⚠️ CẢNH BÁO VÀNG:</strong> {warning_desc}</div>", unsafe_allow_html=True)
+else:
+    st.markdown(f"<div class='warning-green'><strong>✅ TRẠNG THÁI XANH:</strong> {warning_desc}</div>", unsafe_allow_html=True)
 
+# ==================== TABS ====================
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["📝 Nhật ký", "🧠 AI Insight", "🎯 Mục tiêu", "📊 Thống kê", "💬 Chat AI", "👥 Kết nối"])
+
+# Tab 1: Nhật ký
+with tab1:
+    with st.form("journal_form"):
+        work = st.text_area("Hôm nay bạn đã làm gì?")
+        mood = st.select_slider("Cảm xúc", options=["😢 Buồn", "😐 Bình thường", "😊 Vui vẻ", "🤔 Suy tư", "😎 Tự tin", "✨ Hy vọng"])
+        submitted = st.form_submit_button("💾 Lưu nhật ký")
     if submitted and work:
-        if viewing_user == user:
-            timestamp = dt.now().strftime("%Y-%m-%d %H:%M")
-            entry = f"{timestamp} | {work} | {mood}"
-            append_journal(user, entry)
-            st.success("✅ Đã lưu nhật ký!")
-
-            with st.spinner("🤖 InnoMine đang phân tích (có thể mất vài giây)..."):
-                prompt = f"""
-Bạn là InnoMine, robot đồng hành thân thiện. Người dùng vừa viết nhật ký:
-- Công việc: {work}
-- Cảm xúc: {mood}
-Hãy phân tích điểm mạnh tiềm ẩn và đưa ra lời khuyên ngắn gọn, ấm áp, khích lệ (tối đa 150 từ).
-"""
-                try:
-                    response = client.chat.completions.create(
-                        messages=[{"role": "user", "content": prompt}],
-                        model="llama-3.1-8b-instant",
-                        temperature=0.7,
-                        timeout=20
-                    )
-                    st.info(f"💡 **InnoMine nói:** {response.choices[0].message.content}")
-                except Exception as e:
-                    st.error(f"❌ Lỗi kết nối AI: {e}. Vui lòng thử lại sau.")
-        else:
-            st.warning("⚠️ Bạn chỉ có thể ghi nhật ký cho chính mình.")
-
-# ========== BIỂU ĐỒ CẢM XÚC 7 NGÀY ==========
-with right:
-    st.subheader("📊 Thống kê cảm xúc 7 ngày")
-    journal_self = load_journal(user)
-    if journal_self:
-        data = []
-        for line in journal_self:
-            parts = line.split(" | ")
-            if len(parts) >= 3:
-                date_str = parts[0][:10]
-                mood_full = parts[2]
-                mood_text = mood_full.split(maxsplit=1)[-1] if " " in mood_full else mood_full
-                try:
-                    d = dt.strptime(date_str, "%Y-%m-%d")
-                    data.append({"date": d, "mood": mood_text})
-                except:
-                    pass
-        if data:
-            df = pd.DataFrame(data)
-            last_week = dt.now() - timedelta(days=7)
-            df = df[df["date"] >= last_week]
-            if not df.empty:
-                freq = df.groupby(["date", "mood"]).size().reset_index(name="count")
-                fig = px.bar(freq, x="date", y="count", color="mood", title="Cảm xúc gần đây")
-                st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.info("Chưa có dữ liệu 7 ngày qua.")
-        else:
-            st.info("Không thể phân tích cảm xúc.")
+        entry = {"date": dt.now().isoformat(), "content": work, "mood": mood}
+        add_entry(user, entry)
+        # Ghi nhận sự kiện quan trọng vào memory
+        if any(kw in work.lower() for kw in STRESS_KEYWORDS):
+            add_memory(user, f"Người dùng cảm thấy có dấu hiệu {', '.join([kw for kw in STRESS_KEYWORDS if kw in work.lower()])}")
+        elif "vui" in work.lower() or "hạnh phúc" in work.lower():
+            add_memory(user, "Người dùng ghi nhận niềm vui.")
+        st.success("Đã lưu nhật ký!")
+        with st.spinner("InnoMine đang phân tích..."):
+            prompt = f"Người dùng viết: {work}. Cảm xúc: {mood}. Đưa ra nhận xét ngắn, không tâng bốc, chỉ ra xu hướng tích cực nếu có."
+            try:
+                res = client.chat.completions.create(messages=[{"role":"user","content":prompt}], model="llama-3.1-8b-instant", temperature=0.7)
+                st.info(f"💡 {res.choices[0].message.content}")
+            except:
+                st.info("AI tạm thời bận.")
+        st.rerun()
+    journal = load_journal(user)
+    if journal:
+        for entry in reversed(journal[-10:]):
+            d = entry["date"][:16]
+            st.markdown(f"""
+            <div class='journal-entry'>
+                <div><strong>{d}</strong>  {entry['mood']}</div>
+                <div>{entry['content']}</div>
+            </div>
+            """, unsafe_allow_html=True)
     else:
-        st.info("Viết nhật ký để xem thống kê cảm xúc.")
+        st.info("Chưa có nhật ký.")
 
-# ========== TIMELINE VỚI SỬA/XÓA ==========
-st.markdown("---")
-st.subheader(f"📜 Dòng thời gian – {viewing_user}")
+# Tab 2: AI Insight (có Memory Engine)
+with tab2:
+    journal = load_journal(user)
+    memory = load_memory(user)
+    if memory:
+        st.subheader("🧠 Ký ức quan trọng")
+        for mem in memory[-5:]:
+            st.write(f"🔹 {mem['date'][:16]}: {mem['event']}")
+    if len(journal) >= 3:
+        st.subheader("Phân tích xu hướng")
+        recent = journal[-5:]
+        summary = "\n".join([f"- {e['content']} ({e['mood']})" for e in recent])
+        prompt = f"Dựa trên nhật ký gần đây: {summary}\nLưu ý các sự kiện trong quá khứ: {memory[-3:] if memory else 'không có'}. Hãy nhận xét xu hướng cảm xúc và đưa gợi ý."
+        with st.spinner("Đang phân tích..."):
+            try:
+                res = client.chat.completions.create(messages=[{"role":"user","content":prompt}], model="llama-3.1-8b-instant")
+                st.info(res.choices[0].message.content)
+            except:
+                st.error("Lỗi AI.")
+    else:
+        st.info("Cần ít nhất 3 nhật ký để phân tích.")
 
-journal = load_journal(viewing_user)
+# Tab 3: Mục tiêu
+with tab3:
+    goals = load_goals(user)
+    with st.form("goal_form"):
+        goal_name = st.text_input("Mục tiêu mới (ví dụ: Đọc 10 cuốn sách)")
+        progress = st.slider("Tiến độ %", 0, 100, 0)
+        if st.form_submit_button("Thêm/Cập nhật"):
+            existing = {g["name"]: g for g in goals}
+            existing[goal_name] = {"name": goal_name, "progress": progress}
+            save_goals(user, list(existing.values()))
+            st.rerun()
+    if goals:
+        for g in goals:
+            st.write(f"- {g['name']}: {g['progress']}%")
+    else:
+        st.info("Chưa có mục tiêu.")
 
-if "edit_index" not in st.session_state:
-    st.session_state.edit_index = None
+# Tab 4: Thống kê
+with tab4:
+    journal = load_journal(user)
+    if journal:
+        df = pd.DataFrame(journal)
+        df["date"] = pd.to_datetime(df["date"]).dt.date
+        mood_counts = df.groupby(["date", "mood"]).size().reset_index(name="count")
+        if not mood_counts.empty:
+            fig = px.bar(mood_counts, x="date", y="count", color="mood", title="Cảm xúc theo ngày")
+            st.plotly_chart(fig, use_container_width=True)
+        # PGI trend
+        st.subheader("Biểu đồ PGI (dữ liệu thực tế)")
+        pgi_over_time = []
+        for i in range(3, len(journal)+1):
+            fake = journal[:i]
+            scores = [MOOD_SCORE.get(e.get("mood", "😐 Bình thường"), 5) for e in fake]
+            es = 100 - min(100, (max(scores)-min(scores))*10) if len(scores)>1 else 50
+            cons = (len(set([e["date"][:10] for e in fake])) / 14)*100
+            goals = load_goals(user)
+            gc = sum([g["progress"] for g in goals])/len(goals) if goals else 0
+            pos = sum(1 for e in fake if e.get("mood") in ["😊 Vui vẻ","😎 Tự tin","✨ Hy vọng"]) / len(fake)*100
+            pgi_val = es*0.25 + cons*0.25 + gc*0.3 + pos*0.2
+            pgi_over_time.append(round(pgi_val,1))
+        fig2 = go.Figure()
+        fig2.add_trace(go.Scatter(x=list(range(3, len(journal)+1)), y=pgi_over_time, mode='lines+markers', name='PGI'))
+        fig2.update_layout(title="Chỉ số phát triển cá nhân theo thời gian")
+        st.plotly_chart(fig2, use_container_width=True)
+    else:
+        st.info("Chưa có dữ liệu.")
 
-if journal:
-    for idx, line in enumerate(reversed(journal)):
-        parts = line.split(" | ")
-        if len(parts) >= 3:
-            date_part, work_part, mood_part = parts[0], parts[1], parts[2]
-            if st.session_state.edit_index == idx:
-                st.markdown(f"<div class='journal-card edit-mode'>", unsafe_allow_html=True)
-                new_work = st.text_area("Sửa nội dung", value=work_part, key=f"edit_work_{idx}")
-                new_mood = st.select_slider("Cảm xúc", options=["😢 Buồn", "😐 Bình thường", "😊 Vui vẻ", "🤔 Suy tư", "😎 Tự tin", "✨ Hy vọng"], 
-                                            index=["😢 Buồn", "😐 Bình thường", "😊 Vui vẻ", "🤔 Suy tư", "😎 Tự tin", "✨ Hy vọng"].index(mood_part),
-                                            key=f"edit_mood_{idx}")
-                col1, col2 = st.columns(2)
-                if col1.button("💾 Lưu", key=f"save_{idx}"):
-                    new_line = f"{date_part} | {new_work} | {new_mood}"
-                    journal[-(idx+1)] = new_line
-                    save_all_journal(viewing_user, journal)
-                    st.session_state.edit_index = None
-                    st.rerun()
-                if col2.button("❌ Hủy", key=f"cancel_{idx}"):
-                    st.session_state.edit_index = None
-                    st.rerun()
-                st.markdown("</div>", unsafe_allow_html=True)
-            else:
-                col_text, col_edit, col_del = st.columns([10, 1, 1])
-                with col_text:
-                    st.markdown(f"""
-                    <div class='journal-card'>
-                        🕒 **{date_part}**<br>
-                        📌 {work_part}<br>
-                        🎭 {mood_part}
-                    </div>
-                    """, unsafe_allow_html=True)
-                if viewing_user == user:
-                    with col_edit:
-                        if st.button("✏️", key=f"edit_{idx}"):
-                            st.session_state.edit_index = idx
-                            st.rerun()
-                    with col_del:
-                        if st.button("🗑️", key=f"del_{idx}"):
-                            del journal[-(idx+1)]
-                            save_all_journal(viewing_user, journal)
-                            st.rerun()
-        else:
-            st.write(line)
-else:
-    st.info("✨ Chưa có nhật ký nào. Hãy viết những điều bạn trải nghiệm!")
+# Tab 5: Chat AI
+with tab5:
+    st.subheader("Trò chuyện cùng InnoMine")
+    if "chat_history" not in st.session_state:
+        st.session_state.chat_history = []
+    for msg in st.session_state.chat_history:
+        st.write(msg)
+    user_msg = st.text_input("Bạn muốn nói gì?")
+    if st.button("Gửi"):
+        if user_msg:
+            st.session_state.chat_history.append(f"**Bạn:** {user_msg}")
+            with st.spinner("Đang trả lời..."):
+                try:
+                    res = client.chat.completions.create(messages=[{"role":"user","content":user_msg}], model="llama-3.1-8b-instant")
+                    reply = res.choices[0].message.content
+                    st.session_state.chat_history.append(f"**InnoMine:** {reply}")
+                except:
+                    st.session_state.chat_history.append("**InnoMine:** Lỗi kết nối.")
+            st.rerun()
 
-# ========== FOOTER ==========
+# Tab 6: Kết nối và chia sẻ
+with tab6:
+    st.subheader("Chia sẻ khoảnh khắc")
+    share_content = st.text_area("Viết điều bạn muốn chia sẻ với bạn bè")
+    if st.button("Chia sẻ"):
+        if share_content:
+            post = {"date": dt.now().isoformat(), "content": share_content}
+            add_shared_post(user, post)
+            st.success("Đã chia sẻ!")
+    st.markdown("### Bài viết từ bạn bè")
+    for friend in get_friends(user):
+        posts = get_shared_posts(friend)
+        if posts:
+            st.markdown(f"**{friend}**")
+            for p in posts[:3]:
+                st.write(f"- {p['content'][:100]}")
+    st.markdown("---")
+    st.subheader("🤖 Robot Companion")
+    if st.button("🔴 Thử đèn LED khẩn cấp"):
+        st.session_state.robot_led = not st.session_state.robot_led
+    if st.session_state.robot_led:
+        st.markdown("<div style='background:#EF4444; width:60px;height:60px;border-radius:50%;margin:10px auto;box-shadow:0 0 15px red;'></div>", unsafe_allow_html=True)
+        st.caption("Robot đang phát tín hiệu cảnh báo.")
+    else:
+        st.markdown("<div style='background:#9CA3AF; width:60px;height:60px;border-radius:50%;margin:10px auto;'></div>", unsafe_allow_html=True)
+        st.caption("Robot ở chế độ bình thường.")
+
 st.sidebar.markdown("---")
-st.sidebar.subheader("🚀 Sắp ra mắt")
-st.sidebar.markdown("""
-- 🔐 Bảo mật nâng cao
-- 👥 Kết bạn, gửi tin nhắn
-- ☁️ Lưu trữ đám mây vĩnh viễn
-- 🤖 Robot hình cầu với mắt LED
-""")
-st.sidebar.markdown("---")
-st.sidebar.caption("InnoMine Pro - Phiên bản thi đấu chính thức | © 2026")
+st.sidebar.caption("InnoMine-X | Hệ thống AI & Robot đồng hành | Bản demo chính thức")
