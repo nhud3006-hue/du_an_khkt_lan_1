@@ -299,7 +299,6 @@ avatar = "🧠"
 st.sidebar.markdown(f"### {avatar} {user}")
 st.sidebar.markdown("---")
 
-# Lời mời kết bạn
 reqs = get_requests(user)
 if reqs:
     st.sidebar.markdown("### ✉️ Lời mời đến")
@@ -311,7 +310,6 @@ if reqs:
             st.rerun()
     st.sidebar.markdown("---")
 
-# Danh sách bạn bè
 st.sidebar.markdown("### 👥 Bạn bè")
 friends = get_friends(user)
 if friends:
@@ -349,14 +347,15 @@ else:
 # ==================== TABS ====================
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["📝 Nhật ký", "🧠 AI Insight", "🎯 Mục tiêu", "📊 Thống kê", "💬 Chat AI", "👥 Kết nối"])
 
-# --- Tab 1: Nhật ký ---
+# --- Tab 1: Nhật ký (có ảnh) ---
 with tab1:
     with st.form("journal_form"):
         work = st.text_area("Hôm nay bạn đã làm gì?")
         mood = st.select_slider("Cảm xúc", options=["😢 Buồn", "😐 Bình thường", "😊 Vui vẻ", "🤔 Suy tư", "😎 Tự tin", "✨ Hy vọng"])
+        image_url = st.text_input("🔗 Link ảnh (không bắt buộc)", placeholder="https://...")
         submitted = st.form_submit_button("💾 Lưu nhật ký")
     if submitted and work:
-        entry = {"date": dt.now().isoformat(), "content": work, "mood": mood}
+        entry = {"date": dt.now().isoformat(), "content": work, "mood": mood, "image": image_url if image_url else ""}
         add_entry(user, entry)
         if any(kw in work.lower() for kw in STRESS_KEYWORDS):
             add_memory(user, f"Người dùng cảm thấy có dấu hiệu {', '.join([kw for kw in STRESS_KEYWORDS if kw in work.lower()])}")
@@ -379,12 +378,14 @@ with tab1:
             <div class='journal-entry'>
                 <div><strong>{d}</strong>  {entry['mood']}</div>
                 <div>{entry['content']}</div>
-            </div>
             """, unsafe_allow_html=True)
+            if entry.get("image"):
+                st.image(entry["image"], width=250)
+            st.markdown("</div>", unsafe_allow_html=True)
     else:
         st.info("Chưa có nhật ký.")
 
-# --- Tab 2: AI Insight ---
+# --- Tab 2: AI Insight (giữ nguyên) ---
 with tab2:
     memory = load_memory(user)
     if memory:
@@ -406,7 +407,7 @@ with tab2:
     else:
         st.info("Cần ít nhất 3 nhật ký để phân tích.")
 
-# --- Tab 3: Mục tiêu ---
+# --- Tab 3: Mục tiêu (giữ nguyên) ---
 with tab3:
     goals = load_goals(user)
     with st.form("goal_form"):
@@ -423,7 +424,7 @@ with tab3:
     else:
         st.info("Chưa có mục tiêu.")
 
-# --- Tab 4: Thống kê ---
+# --- Tab 4: Thống kê (giữ nguyên) ---
 with tab4:
     journal = load_journal(user)
     if journal:
@@ -452,7 +453,7 @@ with tab4:
     else:
         st.info("Chưa có dữ liệu.")
 
-# --- Tab 5: Chat AI ---
+# --- Tab 5: Chat AI (giữ nguyên) ---
 with tab5:
     st.subheader("Trò chuyện cùng InnoMine")
     if "chat_history" not in st.session_state:
@@ -472,7 +473,7 @@ with tab5:
                     st.session_state.chat_history.append("**InnoMine:** Lỗi kết nối.")
             st.rerun()
 
-# --- Tab 6: Kết nối (kết bạn + chia sẻ) ---
+# --- Tab 6: Kết nối (kết bạn + chia sẻ, có ảnh) ---
 with tab6:
     st.subheader("👥 Kết bạn")
     all_users = get_all_users()
@@ -511,10 +512,11 @@ with tab6:
     
     st.markdown("---")
     st.subheader("💬 Chia sẻ khoảnh khắc")
-    share_content = st.text_area("Viết điều bạn muốn chia sẻ với bạn bè", key="share_area")
+    share_content = st.text_area("Viết điều bạn muốn chia sẻ", key="share_area")
+    share_image = st.text_input("🔗 Link ảnh (không bắt buộc)", placeholder="https://...", key="share_image")
     if st.button("Chia sẻ", key="share_btn"):
         if share_content:
-            post = {"date": dt.now().isoformat(), "content": share_content}
+            post = {"date": dt.now().isoformat(), "content": share_content, "image": share_image if share_image else ""}
             add_shared_post(user, post)
             st.success("Đã chia sẻ!")
             st.rerun()
@@ -526,7 +528,9 @@ with tab6:
             st.markdown(f"**{friend}**")
             for p in posts[:3]:
                 st.write(f"- {p['content'][:100]}")
+                if p.get("image"):
+                    st.image(p["image"], width=200)
 
-# ==================== FOOTER (sidebar) ====================
+# ==================== FOOTER ====================
 st.sidebar.markdown("---")
 st.sidebar.caption("InnoMine-X | Hệ thống AI & Robot đồng hành | Bản demo chính thức")
