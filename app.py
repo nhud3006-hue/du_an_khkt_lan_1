@@ -178,31 +178,27 @@ def save_memory(u, memory):
 def add_memory(u, event):
     mem = load_memory(u)
     mem.append({"date": dt.now().isoformat(), "event": event})
-    save_memory(u, mem[-20:])  # giữ 20 sự kiện gần nhất
+    save_memory(u, mem[-20:])
 
 # ==================== TÍNH TOÁN PGI ====================
 def compute_pgi(user):
     journal = load_journal(user)
     if len(journal) < 3:
         return None, {}
-    # Emotional Stability
     scores = [MOOD_SCORE.get(e.get("mood", "😐 Bình thường"), 5) for e in journal[-10:]]
     if len(scores) > 1:
         emotional_stability = 100 - min(100, (max(scores)-min(scores)) * 10)
     else:
         emotional_stability = 50
-    # Consistency
     recent_days = set()
     for e in journal[-14:]:
         recent_days.add(e["date"][:10])
     consistency = (len(recent_days) / 14) * 100
-    # Goal Completion
     goals = load_goals(user)
     if goals:
         goal_completion = sum([g["progress"] for g in goals]) / len(goals)
     else:
         goal_completion = 0
-    # Positive Engagement
     positive_moods = ["😊 Vui vẻ", "😎 Tự tin", "✨ Hy vọng"]
     recent_7 = journal[-7:]
     if recent_7:
@@ -220,7 +216,7 @@ def compute_pgi(user):
     }
     return pgi, components
 
-# ==================== EARLY WARNING + PHÂN TÍCH NỘI DUNG ====================
+# ==================== EARLY WARNING ====================
 def analyze_content(content):
     content_lower = content.lower()
     stress_score = 0
@@ -237,7 +233,6 @@ def early_warning_level(user):
     recent = journal[-10:]
     mood_neg = sum(1 for e in recent if e.get("mood") in negative_moods)
     content_stress = sum(analyze_content(e.get("content", "")) for e in recent)
-    # Kết hợp mood và stress content
     risk_score = (mood_neg / len(recent)) * 100 + min(50, content_stress * 10)
     if risk_score >= 70:
         return "🔴 Đỏ", "Nguy cơ cao - Can thiệp ngay", "red"
@@ -265,7 +260,7 @@ if "GROQ_API_KEY" in st.secrets:
         st.error("⚠️ Lỗi kết nối AI.")
         st.stop()
 else:
-    st.error("⚠️ Thiếu GROQ_API_KEY.")
+    st.error("⚠️ Thiếu GROQ_API_KEY trong Secrets.")
     st.stop()
 
 # ==================== ĐĂNG NHẬP ====================
@@ -308,33 +303,41 @@ if not st.session_state.logged_in:
 user = st.session_state.username
 avatar = "🧠"
 
-# ==================== GIAO DIỆN CHÍNH ====================
+# ==================== GIAO DIỆN SIDEBAR (ĐÃ SỬA LỖI EXPANDER) ====================
 st.sidebar.markdown(f"### {avatar} {user}")
 st.sidebar.markdown("---")
 
-# KẾT BẠN
-with st.sidebar.expander("➕ Kết bạn"):
+# --- KẾT BẠN (dùng form thay vì expander) ---
+with st.sidebar.form("add_friend_form"):
+    st.markdown("#### ➕ Kết bạn mới")
     all_u = get_all_users()
     friends = get_friends(user)
     candidates = [u for u in all_u if u != user and u not in friends]
     if candidates:
-        target = st.selectbox("Chọn người dùng", candidates)
-        if st.button("📨 Gửi lời mời"):
+        target = st.selectbox("Chọn người dùng", candidates, key="target_select")
+        submitted = st.form_submit_button("📨 Gửi lời mời")
+        if submitted:
             send_request(user, target)
-            st.success(f"Đã gửi mời đến {target}!")
+            st.success(f"Đã gửi lời mời đến {target}!")
+            st.rerun()
     else:
-        st.info("Không có người dùng mới.")
+        st.info("Không có người dùng mới để kết bạn.")
 
+st.sidebar.markdown("---")
+
+# --- LỜI MỜI KẾT BẠN ---
 reqs = get_requests(user)
 if reqs:
     st.sidebar.markdown("### ✉️ Lời mời đến")
     for r in reqs:
         col1, col2 = st.sidebar.columns([3,1])
         col1.write(r)
-        if col2.button("✅", key=f"acc_{r}"):
+        if col2.button("✅", key=f"accept_{r}"):
             accept_request(user, r)
             st.rerun()
+    st.sidebar.markdown("---")
 
+# --- DANH SÁCH BẠN BÈ ---
 st.sidebar.markdown("### 👥 Bạn bè")
 friends = get_friends(user)
 if friends:
@@ -342,6 +345,7 @@ if friends:
         st.sidebar.write(f"• {f}")
 else:
     st.sidebar.info("Chưa có bạn bè.")
+st.sidebar.markdown("---")
 
 # ==================== DASHBOARD ====================
 st.markdown(f"<h1 class='main-title'>Chào {user} 👋</h1>", unsafe_allow_html=True)
@@ -380,7 +384,6 @@ with tab1:
     if submitted and work:
         entry = {"date": dt.now().isoformat(), "content": work, "mood": mood}
         add_entry(user, entry)
-        # Ghi nhận sự kiện quan trọng vào memory
         if any(kw in work.lower() for kw in STRESS_KEYWORDS):
             add_memory(user, f"Người dùng cảm thấy có dấu hiệu {', '.join([kw for kw in STRESS_KEYWORDS if kw in work.lower()])}")
         elif "vui" in work.lower() or "hạnh phúc" in work.lower():
@@ -407,14 +410,14 @@ with tab1:
     else:
         st.info("Chưa có nhật ký.")
 
-# Tab 2: AI Insight (có Memory Engine)
+# Tab 2: AI Insight (có Memory)
 with tab2:
-    journal = load_journal(user)
     memory = load_memory(user)
     if memory:
         st.subheader("🧠 Ký ức quan trọng")
         for mem in memory[-5:]:
             st.write(f"🔹 {mem['date'][:16]}: {mem['event']}")
+    journal = load_journal(user)
     if len(journal) >= 3:
         st.subheader("Phân tích xu hướng")
         recent = journal[-5:]
@@ -456,7 +459,6 @@ with tab4:
         if not mood_counts.empty:
             fig = px.bar(mood_counts, x="date", y="count", color="mood", title="Cảm xúc theo ngày")
             st.plotly_chart(fig, use_container_width=True)
-        # PGI trend
         st.subheader("Biểu đồ PGI (dữ liệu thực tế)")
         pgi_over_time = []
         for i in range(3, len(journal)+1):
@@ -496,7 +498,7 @@ with tab5:
                     st.session_state.chat_history.append("**InnoMine:** Lỗi kết nối.")
             st.rerun()
 
-# Tab 6: Kết nối và chia sẻ
+# Tab 6: Kết nối & chia sẻ
 with tab6:
     st.subheader("Chia sẻ khoảnh khắc")
     share_content = st.text_area("Viết điều bạn muốn chia sẻ với bạn bè")
