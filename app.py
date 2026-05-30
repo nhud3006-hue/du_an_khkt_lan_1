@@ -26,14 +26,6 @@ st.markdown("""
         -webkit-text-fill-color: transparent;
         text-align: center;
     }
-    .glass-card {
-        background: rgba(255,255,255,0.9);
-        backdrop-filter: blur(2px);
-        border-radius: 32px;
-        padding: 1.5rem;
-        box-shadow: 0 8px 20px rgba(0,0,0,0.02);
-        border: 1px solid rgba(255,255,255,0.5);
-    }
     .journal-entry {
         background: white;
         border-radius: 24px;
@@ -303,41 +295,23 @@ if not st.session_state.logged_in:
 user = st.session_state.username
 avatar = "🧠"
 
-# ==================== GIAO DIỆN SIDEBAR (ĐÃ SỬA LỖI EXPANDER) ====================
+# ==================== SIDEBAR (chỉ hiển thị lời mời và danh sách bạn bè) ====================
 st.sidebar.markdown(f"### {avatar} {user}")
 st.sidebar.markdown("---")
 
-# --- KẾT BẠN (dùng form thay vì expander) ---
-with st.sidebar.form("add_friend_form"):
-    st.markdown("#### ➕ Kết bạn mới")
-    all_u = get_all_users()
-    friends = get_friends(user)
-    candidates = [u for u in all_u if u != user and u not in friends]
-    if candidates:
-        target = st.selectbox("Chọn người dùng", candidates, key="target_select")
-        submitted = st.form_submit_button("📨 Gửi lời mời")
-        if submitted:
-            send_request(user, target)
-            st.success(f"Đã gửi lời mời đến {target}!")
-            st.rerun()
-    else:
-        st.info("Không có người dùng mới để kết bạn.")
-
-st.sidebar.markdown("---")
-
-# --- LỜI MỜI KẾT BẠN ---
+# Lời mời kết bạn
 reqs = get_requests(user)
 if reqs:
     st.sidebar.markdown("### ✉️ Lời mời đến")
     for r in reqs:
         col1, col2 = st.sidebar.columns([3,1])
         col1.write(r)
-        if col2.button("✅", key=f"accept_{r}"):
+        if col2.button("✅", key=f"accept_sidebar_{r}"):
             accept_request(user, r)
             st.rerun()
     st.sidebar.markdown("---")
 
-# --- DANH SÁCH BẠN BÈ ---
+# Danh sách bạn bè
 st.sidebar.markdown("### 👥 Bạn bè")
 friends = get_friends(user)
 if friends:
@@ -375,7 +349,7 @@ else:
 # ==================== TABS ====================
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["📝 Nhật ký", "🧠 AI Insight", "🎯 Mục tiêu", "📊 Thống kê", "💬 Chat AI", "👥 Kết nối"])
 
-# Tab 1: Nhật ký
+# --- Tab 1: Nhật ký ---
 with tab1:
     with st.form("journal_form"):
         work = st.text_area("Hôm nay bạn đã làm gì?")
@@ -410,7 +384,7 @@ with tab1:
     else:
         st.info("Chưa có nhật ký.")
 
-# Tab 2: AI Insight (có Memory)
+# --- Tab 2: AI Insight ---
 with tab2:
     memory = load_memory(user)
     if memory:
@@ -432,7 +406,7 @@ with tab2:
     else:
         st.info("Cần ít nhất 3 nhật ký để phân tích.")
 
-# Tab 3: Mục tiêu
+# --- Tab 3: Mục tiêu ---
 with tab3:
     goals = load_goals(user)
     with st.form("goal_form"):
@@ -449,7 +423,7 @@ with tab3:
     else:
         st.info("Chưa có mục tiêu.")
 
-# Tab 4: Thống kê
+# --- Tab 4: Thống kê ---
 with tab4:
     journal = load_journal(user)
     if journal:
@@ -478,7 +452,7 @@ with tab4:
     else:
         st.info("Chưa có dữ liệu.")
 
-# Tab 5: Chat AI
+# --- Tab 5: Chat AI ---
 with tab5:
     st.subheader("Trò chuyện cùng InnoMine")
     if "chat_history" not in st.session_state:
@@ -498,15 +472,53 @@ with tab5:
                     st.session_state.chat_history.append("**InnoMine:** Lỗi kết nối.")
             st.rerun()
 
-# Tab 6: Kết nối & chia sẻ
+# --- Tab 6: Kết nối (kết bạn + chia sẻ) ---
 with tab6:
-    st.subheader("Chia sẻ khoảnh khắc")
-    share_content = st.text_area("Viết điều bạn muốn chia sẻ với bạn bè")
-    if st.button("Chia sẻ"):
+    st.subheader("👥 Kết bạn")
+    all_users = get_all_users()
+    friends = get_friends(user)
+    candidates = [u for u in all_users if u != user and u not in friends and u not in get_requests(user)]
+    if candidates:
+        target = st.selectbox("Chọn người dùng để kết bạn", candidates, key="target_tab6")
+        if st.button("📨 Gửi lời mời", key="send_invite_tab6"):
+            send_request(user, target)
+            st.success(f"Đã gửi lời mời đến {target}!")
+            st.rerun()
+    else:
+        st.info("Không có người dùng mới để kết bạn hoặc bạn đã gửi lời mời rồi.")
+    
+    st.markdown("---")
+    st.subheader("✉️ Lời mời kết bạn đã nhận")
+    reqs = get_requests(user)
+    if reqs:
+        for r in reqs:
+            col1, col2 = st.columns([3,1])
+            col1.write(r)
+            if col2.button("✅ Chấp nhận", key=f"accept_tab6_{r}"):
+                accept_request(user, r)
+                st.rerun()
+    else:
+        st.info("Không có lời mời nào.")
+    
+    st.markdown("---")
+    st.subheader("👥 Danh sách bạn bè")
+    friends = get_friends(user)
+    if friends:
+        for f in friends:
+            st.write(f"• {f}")
+    else:
+        st.info("Chưa có bạn bè. Hãy gửi lời mời ở trên.")
+    
+    st.markdown("---")
+    st.subheader("💬 Chia sẻ khoảnh khắc")
+    share_content = st.text_area("Viết điều bạn muốn chia sẻ với bạn bè", key="share_area")
+    if st.button("Chia sẻ", key="share_btn"):
         if share_content:
             post = {"date": dt.now().isoformat(), "content": share_content}
             add_shared_post(user, post)
             st.success("Đã chia sẻ!")
+            st.rerun()
+    
     st.markdown("### Bài viết từ bạn bè")
     for friend in get_friends(user):
         posts = get_shared_posts(friend)
@@ -514,16 +526,7 @@ with tab6:
             st.markdown(f"**{friend}**")
             for p in posts[:3]:
                 st.write(f"- {p['content'][:100]}")
-    st.markdown("---")
-    st.subheader("🤖 Robot Companion")
-    if st.button("🔴 Thử đèn LED khẩn cấp"):
-        st.session_state.robot_led = not st.session_state.robot_led
-    if st.session_state.robot_led:
-        st.markdown("<div style='background:#EF4444; width:60px;height:60px;border-radius:50%;margin:10px auto;box-shadow:0 0 15px red;'></div>", unsafe_allow_html=True)
-        st.caption("Robot đang phát tín hiệu cảnh báo.")
-    else:
-        st.markdown("<div style='background:#9CA3AF; width:60px;height:60px;border-radius:50%;margin:10px auto;'></div>", unsafe_allow_html=True)
-        st.caption("Robot ở chế độ bình thường.")
 
+# ==================== FOOTER (sidebar) ====================
 st.sidebar.markdown("---")
 st.sidebar.caption("InnoMine-X | Hệ thống AI & Robot đồng hành | Bản demo chính thức")
