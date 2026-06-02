@@ -13,41 +13,71 @@ import re
 # ==================== CẤU HÌNH TRANG ====================
 st.set_page_config(page_title="InnoMine-X", page_icon="🧠", layout="wide")
 
-# CSS đơn giản hóa, tương thích mọi trình duyệt
+# ==================== CSS TỐI GIẢN, KHÔNG GÂY LỖI ====================
 st.markdown("""
 <style>
-    * { font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
-    .stApp { background: #F0F4FA; }
-    header, footer { visibility: hidden; }
+    /* Reset mọi hiệu ứng phức tạp */
+    .stApp {
+        background-color: #f5f7fb;
+    }
     .main-title {
-        font-size: 2.2rem;
+        font-size: 2rem;
         font-weight: 700;
-        color: #1E3A8A;
+        color: #1e3a8a;
         text-align: center;
+        margin-bottom: 0.5rem;
     }
     .journal-entry {
         background: white;
-        border-radius: 20px;
+        border-radius: 16px;
         padding: 1rem;
         margin-bottom: 0.8rem;
-        border-left: 4px solid #3B82F6;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+        border-left: 4px solid #3b82f6;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
     .stButton button {
-        border-radius: 30px !important;
-        background: #3B82F6 !important;
+        background-color: #3b82f6 !important;
         color: white !important;
+        border-radius: 30px !important;
         font-weight: 600 !important;
         border: none !important;
     }
-    .stButton button:hover { background: #2563EB !important; }
-    .warning-green { background: #D1FAE5; border-left: 6px solid #10B981; padding: 0.75rem; border-radius: 16px; margin: 0.5rem 0; }
-    .warning-yellow { background: #FEF3C7; border-left: 6px solid #F59E0B; padding: 0.75rem; border-radius: 16px; margin: 0.5rem 0; }
-    .warning-orange { background: #FFEDD5; border-left: 6px solid #EA580C; padding: 0.75rem; border-radius: 16px; margin: 0.5rem 0; }
-    .warning-red { background: #FEE2E2; border-left: 6px solid #DC2626; padding: 0.75rem; border-radius: 16px; margin: 0.5rem 0; }
-    @media (max-width: 768px) {
-        .main-title { font-size: 1.6rem; }
-        .journal-entry { padding: 0.75rem; }
+    .stButton button:hover {
+        background-color: #2563eb !important;
+    }
+    .warning-green {
+        background-color: #d1fae5;
+        border-left: 5px solid #10b981;
+        padding: 0.75rem;
+        border-radius: 12px;
+        margin: 0.5rem 0;
+    }
+    .warning-yellow {
+        background-color: #fef3c7;
+        border-left: 5px solid #f59e0b;
+        padding: 0.75rem;
+        border-radius: 12px;
+        margin: 0.5rem 0;
+    }
+    .warning-orange {
+        background-color: #ffedd5;
+        border-left: 5px solid #ea580c;
+        padding: 0.75rem;
+        border-radius: 12px;
+        margin: 0.5rem 0;
+    }
+    .warning-red {
+        background-color: #fee2e2;
+        border-left: 5px solid #dc2626;
+        padding: 0.75rem;
+        border-radius: 12px;
+        margin: 0.5rem 0;
+    }
+    /* Đảm bảo input hiển thị rõ */
+    .stTextInput input, .stTextArea textarea, .stSelectbox select {
+        border-radius: 12px !important;
+        border: 1px solid #cbd5e1 !important;
+        padding: 0.5rem !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -60,10 +90,8 @@ STRESS_KEYWORDS = ["stress", "áp lực", "mệt mỏi", "căng thẳng", "lo l�
 def hash_password(pwd):
     return hashlib.sha256(pwd.encode()).hexdigest()
 
-# ==================== QUẢN LÝ USER (Dùng file, nhưng có backup) ====================
+# ==================== QUẢN LÝ USER (DÙNG FILE) ====================
 USER_FILE = "users.json"
-
-# Tạo user mặc định nếu file chưa tồn tại
 if not os.path.exists(USER_FILE):
     default_users = {
         "minh": hash_password("123"),
@@ -79,15 +107,12 @@ def load_users():
             return json.load(f)
     except:
         return {}
-
 def save_users(users):
     with open(USER_FILE, "w") as f:
         json.dump(users, f)
-
 def authenticate(u, p):
     users = load_users()
     return users.get(u) == hash_password(p)
-
 def register_user(u, p):
     users = load_users()
     if u in users:
@@ -95,7 +120,6 @@ def register_user(u, p):
     users[u] = hash_password(p)
     save_users(users)
     return True
-
 def get_all_users():
     return list(load_users().keys())
 
@@ -252,7 +276,7 @@ def early_warning_level(user):
     else:
         return "🟢 Xanh", "Ổn định", "green"
 
-# ==================== ROBOT COMPANION ====================
+# ==================== ROBOT ====================
 if "robot_led" not in st.session_state:
     st.session_state.robot_led = False
 def robot_alert(level):
@@ -272,40 +296,43 @@ else:
     st.error("⚠️ Thiếu GROQ_API_KEY trong Secrets.")
     st.stop()
 
-# ==================== ĐĂNG NHẬP (SỬA LỖI) ====================
+# ==================== ĐĂNG NHẬP (ĐƠN GIẢN NHẤT) ====================
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
     st.session_state.username = ""
 
 if not st.session_state.logged_in:
-    col1, col2, col3 = st.columns([1,2,1])
-    with col2:
-        st.markdown("<h1 class='main-title'>🧠 InnoMine-X</h1>", unsafe_allow_html=True)
-        st.markdown("<p style='text-align:center'>Hệ thống AI & Robot đồng hành hỗ trợ sức khỏe tinh thần học sinh</p>", unsafe_allow_html=True)
-        option = st.radio("", ["🔐 Đăng nhập", "🆕 Đăng ký"])
-        if option == "🔐 Đăng nhập":
-            u = st.text_input("Tên đăng nhập", key="login_username")
-            p = st.text_input("Mật khẩu", type="password", key="login_password")
-            if st.button("Đăng nhập", use_container_width=True, key="login_btn"):
-                if authenticate(u, p):
-                    st.session_state.logged_in = True
-                    st.session_state.username = u
-                    st.rerun()
-                else:
-                    st.error("Sai tên hoặc mật khẩu. Nếu chưa có tài khoản, hãy chọn Đăng ký.")
-        else:
-            u = st.text_input("Tên mới (chữ thường, không dấu, ví dụ: an)", key="reg_username")
-            p = st.text_input("Mật khẩu", type="password", key="reg_password")
-            c = st.text_input("Xác nhận mật khẩu", type="password", key="reg_confirm")
-            if st.button("Đăng ký", use_container_width=True, key="reg_btn"):
-                if u and p and p == c and u.isalnum():
-                    if register_user(u, p):
-                        st.success("Đăng ký thành công! Hãy đăng nhập.")
-                        # Không tự động đăng nhập, để người dùng đăng nhập lại
+    # Hiển thị form đăng nhập không dùng cột phức tạp
+    st.markdown("<h1 class='main-title'>🧠 InnoMine-X</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align:center'>Hệ thống AI & Robot đồng hành hỗ trợ sức khỏe tinh thần học sinh</p>", unsafe_allow_html=True)
+    
+    # Dùng container để căn giữa
+    with st.container():
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            option = st.radio("Bạn muốn?", ["🔐 Đăng nhập", "🆕 Đăng ký"], horizontal=True)
+            if option == "🔐 Đăng nhập":
+                u = st.text_input("Tên đăng nhập", key="login_user")
+                p = st.text_input("Mật khẩu", type="password", key="login_pass")
+                if st.button("Đăng nhập", use_container_width=True):
+                    if authenticate(u, p):
+                        st.session_state.logged_in = True
+                        st.session_state.username = u
+                        st.rerun()
                     else:
-                        st.error("Tên đã tồn tại.")
-                else:
-                    st.error("Tên chỉ gồm chữ và số, mật khẩu phải khớp.")
+                        st.error("Sai tên hoặc mật khẩu. Dùng: minh/123, lan/456, huy/789")
+            else:
+                u = st.text_input("Tên mới (chữ thường, không dấu)", key="reg_user")
+                p = st.text_input("Mật khẩu", type="password", key="reg_pass")
+                c = st.text_input("Xác nhận mật khẩu", type="password", key="reg_confirm")
+                if st.button("Đăng ký", use_container_width=True):
+                    if u and p and p == c and u.isalnum():
+                        if register_user(u, p):
+                            st.success("Đăng ký thành công! Hãy đăng nhập.")
+                        else:
+                            st.error("Tên đã tồn tại.")
+                    else:
+                        st.error("Tên chỉ gồm chữ và số, mật khẩu phải khớp.")
     st.stop()
 
 user = st.session_state.username
