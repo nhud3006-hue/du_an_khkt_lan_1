@@ -13,111 +13,6 @@ import re
 # ==================== CẤU HÌNH TRANG ====================
 st.set_page_config(page_title="InnoMine-X", page_icon="🧠", layout="wide")
 
-# ==================== CSS CỰC KỲ ĐƠN GIẢN, MÀU XANH ĐẬM, TƯƠNG PHẢN CAO ====================
-st.markdown("""
-<style>
-    /* Toàn bộ nền trắng/xám nhạt, chữ màu xanh đậm hoặc đen */
-    .stApp {
-        background-color: #f8f9fa;
-    }
-    /* Tiêu đề chính */
-    .main-title {
-        font-size: 2rem;
-        font-weight: 700;
-        color: #0a2472;  /* xanh đậm */
-        text-align: center;
-        margin-bottom: 0.5rem;
-    }
-    /* Các tiêu đề phụ */
-    h1, h2, h3, h4, h5, h6, .stMarkdown, .stSubheader, .stText, .stWrite {
-        color: #0a2472 !important;
-    }
-    /* Card nhật ký */
-    .journal-entry {
-        background: white;
-        border-radius: 16px;
-        padding: 1rem;
-        margin-bottom: 0.8rem;
-        border-left: 4px solid #3b82f6;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-        color: #111;
-    }
-    /* Nút bấm */
-    .stButton button {
-        background-color: #0a2472 !important;
-        color: white !important;
-        border-radius: 30px !important;
-        font-weight: 600 !important;
-        border: none !important;
-    }
-    .stButton button:hover {
-        background-color: #1e3a8a !important;
-    }
-    /* Các ô nhập liệu */
-    .stTextInput input, .stTextArea textarea, .stSelectbox select {
-        border-radius: 12px !important;
-        border: 1px solid #ccc !important;
-        padding: 0.5rem !important;
-        color: #111 !important;
-        background: white !important;
-    }
-    /* Các cảnh báo */
-    .warning-green {
-        background-color: #d1fae5;
-        border-left: 5px solid #10b981;
-        padding: 0.75rem;
-        border-radius: 12px;
-        margin: 0.5rem 0;
-        color: #065f46;
-    }
-    .warning-yellow {
-        background-color: #fef3c7;
-        border-left: 5px solid #f59e0b;
-        padding: 0.75rem;
-        border-radius: 12px;
-        margin: 0.5rem 0;
-        color: #92400e;
-    }
-    .warning-orange {
-        background-color: #ffedd5;
-        border-left: 5px solid #ea580c;
-        padding: 0.75rem;
-        border-radius: 12px;
-        margin: 0.5rem 0;
-        color: #9a3412;
-    }
-    .warning-red {
-        background-color: #fee2e2;
-        border-left: 5px solid #dc2626;
-        padding: 0.75rem;
-        border-radius: 12px;
-        margin: 0.5rem 0;
-        color: #991b1b;
-    }
-    /* Sidebar */
-    .css-1d391kg, .css-12oz5g0 {
-        background-color: #ffffff;
-    }
-    /* Tất cả chữ trong sidebar */
-    .sidebar .sidebar-content, .stSidebar, .stSidebar * {
-        color: #0a2472 !important;
-    }
-    /* Metric */
-    [data-testid="stMetricValue"] {
-        color: #0a2472 !important;
-    }
-    /* Progress bar */
-    .stProgress > div > div {
-        background-color: #0a2472 !important;
-    }
-    /* Đảm bảo không có gradient hay backdrop-filter nào */
-    * {
-        backdrop-filter: none !important;
-        background-image: none !important;
-    }
-</style>
-""", unsafe_allow_html=True)
-
 # ==================== GLOBAL CONSTANTS ====================
 MOOD_SCORE = {"😢 Buồn": 2, "😐 Bình thường": 5, "😊 Vui vẻ": 8, "🤔 Suy tư": 6, "😎 Tự tin": 9, "✨ Hy vọng": 9}
 STRESS_KEYWORDS = ["stress", "áp lực", "mệt mỏi", "căng thẳng", "lo lắng", "mất ngủ", "cô đơn", "buồn"]
@@ -126,7 +21,7 @@ STRESS_KEYWORDS = ["stress", "áp lực", "mệt mỏi", "căng thẳng", "lo l�
 def hash_password(pwd):
     return hashlib.sha256(pwd.encode()).hexdigest()
 
-# ==================== QUẢN LÝ USER (DÙNG FILE) ====================
+# ==================== QUẢN LÝ USER ====================
 USER_FILE = "users.json"
 if not os.path.exists(USER_FILE):
     default_users = {
@@ -338,16 +233,16 @@ if "logged_in" not in st.session_state:
     st.session_state.username = ""
 
 if not st.session_state.logged_in:
-    st.markdown("<h1 class='main-title'>🧠 InnoMine-X</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align:center; color:#0a2472;'>Hệ thống AI & Robot đồng hành hỗ trợ sức khỏe tinh thần học sinh</p>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align:center;'>🧠 InnoMine-X</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align:center;'>Hệ thống AI & Robot đồng hành hỗ trợ sức khỏe tinh thần học sinh</p>", unsafe_allow_html=True)
     
     with st.container():
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
             option = st.radio("Bạn muốn?", ["🔐 Đăng nhập", "🆕 Đăng ký"], horizontal=True)
             if option == "🔐 Đăng nhập":
-                u = st.text_input("Tên đăng nhập", key="login_user")
-                p = st.text_input("Mật khẩu", type="password", key="login_pass")
+                u = st.text_input("Tên đăng nhập")
+                p = st.text_input("Mật khẩu", type="password")
                 if st.button("Đăng nhập", use_container_width=True):
                     if authenticate(u, p):
                         st.session_state.logged_in = True
@@ -356,9 +251,9 @@ if not st.session_state.logged_in:
                     else:
                         st.error("Sai tên hoặc mật khẩu. Dùng: minh/123, lan/456, huy/789")
             else:
-                u = st.text_input("Tên mới (chữ thường, không dấu)", key="reg_user")
-                p = st.text_input("Mật khẩu", type="password", key="reg_pass")
-                c = st.text_input("Xác nhận mật khẩu", type="password", key="reg_confirm")
+                u = st.text_input("Tên mới (chữ thường, không dấu)")
+                p = st.text_input("Mật khẩu", type="password")
+                c = st.text_input("Xác nhận mật khẩu", type="password")
                 if st.button("Đăng ký", use_container_width=True):
                     if u and p and p == c and u.isalnum():
                         if register_user(u, p):
@@ -397,7 +292,7 @@ else:
 st.sidebar.markdown("---")
 
 # ==================== DASHBOARD ====================
-st.markdown(f"<h1 class='main-title'>Chào {user} 👋</h1>", unsafe_allow_html=True)
+st.markdown(f"<h1 style='text-align:center;'>Chào {user} 👋</h1>", unsafe_allow_html=True)
 pgi, pgi_components = compute_pgi(user)
 warning_text, warning_desc, warning_color = early_warning_level(user)
 robot_alert(warning_color)
@@ -413,13 +308,13 @@ if pgi_components:
             st.progress(v/100, text=f"{k}: {v}/100")
 
 if warning_color == "red":
-    st.markdown(f"<div class='warning-red'><strong>⚠️ CẢNH BÁO ĐỎ:</strong> {warning_desc}<br>🤖 Robot sẽ nhấp nháy. Hãy trò chuyện với AI hoặc tìm sự hỗ trợ.</div>", unsafe_allow_html=True)
+    st.error(f"🚨 CẢNH BÁO ĐỎ: {warning_desc} - Robot sẽ nhấp nháy")
 elif warning_color == "orange":
-    st.markdown(f"<div class='warning-orange'><strong>⚠️ CẢNH BÁO CAM:</strong> {warning_desc}</div>", unsafe_allow_html=True)
+    st.warning(f"⚠️ CẢNH BÁO CAM: {warning_desc}")
 elif warning_color == "yellow":
-    st.markdown(f"<div class='warning-yellow'><strong>⚠️ CẢNH BÁO VÀNG:</strong> {warning_desc}</div>", unsafe_allow_html=True)
+    st.warning(f"⚠️ CẢNH BÁO VÀNG: {warning_desc}")
 else:
-    st.markdown(f"<div class='warning-green'><strong>✅ TRẠNG THÁI XANH:</strong> {warning_desc}</div>", unsafe_allow_html=True)
+    st.success(f"✅ TRẠNG THÁI XANH: {warning_desc}")
 
 # ==================== TABS ====================
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["📝 Nhật ký", "🧠 AI Insight", "🎯 Mục tiêu", "📊 Thống kê", "💬 Chat AI", "👥 Kết nối"])
@@ -451,14 +346,11 @@ with tab1:
     if journal:
         for entry in reversed(journal[-10:]):
             d = entry["date"][:16]
-            st.markdown(f"""
-            <div class='journal-entry'>
-                <div><strong>{d}</strong>  {entry['mood']}</div>
-                <div>{entry['content']}</div>
-            """, unsafe_allow_html=True)
+            st.markdown(f"**{d}** {entry['mood']}")
+            st.write(entry['content'])
             if entry.get("image"):
                 st.image(entry["image"], width=250)
-            st.markdown("</div>", unsafe_allow_html=True)
+            st.markdown("---")
     else:
         st.info("Chưa có nhật ký.")
 
