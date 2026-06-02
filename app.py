@@ -13,20 +13,26 @@ import re
 # ==================== CẤU HÌNH TRANG ====================
 st.set_page_config(page_title="InnoMine-X", page_icon="🧠", layout="wide")
 
-# ==================== CSS TỐI GIẢN, KHÔNG GÂY LỖI ====================
+# ==================== CSS CỰC KỲ ĐƠN GIẢN, MÀU XANH ĐẬM, TƯƠNG PHẢN CAO ====================
 st.markdown("""
 <style>
-    /* Reset mọi hiệu ứng phức tạp */
+    /* Toàn bộ nền trắng/xám nhạt, chữ màu xanh đậm hoặc đen */
     .stApp {
-        background-color: #f5f7fb;
+        background-color: #f8f9fa;
     }
+    /* Tiêu đề chính */
     .main-title {
         font-size: 2rem;
         font-weight: 700;
-        color: #1e3a8a;
+        color: #0a2472;  /* xanh đậm */
         text-align: center;
         margin-bottom: 0.5rem;
     }
+    /* Các tiêu đề phụ */
+    h1, h2, h3, h4, h5, h6, .stMarkdown, .stSubheader, .stText, .stWrite {
+        color: #0a2472 !important;
+    }
+    /* Card nhật ký */
     .journal-entry {
         background: white;
         border-radius: 16px;
@@ -34,23 +40,35 @@ st.markdown("""
         margin-bottom: 0.8rem;
         border-left: 4px solid #3b82f6;
         box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        color: #111;
     }
+    /* Nút bấm */
     .stButton button {
-        background-color: #3b82f6 !important;
+        background-color: #0a2472 !important;
         color: white !important;
         border-radius: 30px !important;
         font-weight: 600 !important;
         border: none !important;
     }
     .stButton button:hover {
-        background-color: #2563eb !important;
+        background-color: #1e3a8a !important;
     }
+    /* Các ô nhập liệu */
+    .stTextInput input, .stTextArea textarea, .stSelectbox select {
+        border-radius: 12px !important;
+        border: 1px solid #ccc !important;
+        padding: 0.5rem !important;
+        color: #111 !important;
+        background: white !important;
+    }
+    /* Các cảnh báo */
     .warning-green {
         background-color: #d1fae5;
         border-left: 5px solid #10b981;
         padding: 0.75rem;
         border-radius: 12px;
         margin: 0.5rem 0;
+        color: #065f46;
     }
     .warning-yellow {
         background-color: #fef3c7;
@@ -58,6 +76,7 @@ st.markdown("""
         padding: 0.75rem;
         border-radius: 12px;
         margin: 0.5rem 0;
+        color: #92400e;
     }
     .warning-orange {
         background-color: #ffedd5;
@@ -65,6 +84,7 @@ st.markdown("""
         padding: 0.75rem;
         border-radius: 12px;
         margin: 0.5rem 0;
+        color: #9a3412;
     }
     .warning-red {
         background-color: #fee2e2;
@@ -72,12 +92,28 @@ st.markdown("""
         padding: 0.75rem;
         border-radius: 12px;
         margin: 0.5rem 0;
+        color: #991b1b;
     }
-    /* Đảm bảo input hiển thị rõ */
-    .stTextInput input, .stTextArea textarea, .stSelectbox select {
-        border-radius: 12px !important;
-        border: 1px solid #cbd5e1 !important;
-        padding: 0.5rem !important;
+    /* Sidebar */
+    .css-1d391kg, .css-12oz5g0 {
+        background-color: #ffffff;
+    }
+    /* Tất cả chữ trong sidebar */
+    .sidebar .sidebar-content, .stSidebar, .stSidebar * {
+        color: #0a2472 !important;
+    }
+    /* Metric */
+    [data-testid="stMetricValue"] {
+        color: #0a2472 !important;
+    }
+    /* Progress bar */
+    .stProgress > div > div {
+        background-color: #0a2472 !important;
+    }
+    /* Đảm bảo không có gradient hay backdrop-filter nào */
+    * {
+        backdrop-filter: none !important;
+        background-image: none !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -296,17 +332,15 @@ else:
     st.error("⚠️ Thiếu GROQ_API_KEY trong Secrets.")
     st.stop()
 
-# ==================== ĐĂNG NHẬP (ĐƠN GIẢN NHẤT) ====================
+# ==================== ĐĂNG NHẬP ====================
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
     st.session_state.username = ""
 
 if not st.session_state.logged_in:
-    # Hiển thị form đăng nhập không dùng cột phức tạp
     st.markdown("<h1 class='main-title'>🧠 InnoMine-X</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align:center'>Hệ thống AI & Robot đồng hành hỗ trợ sức khỏe tinh thần học sinh</p>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align:center; color:#0a2472;'>Hệ thống AI & Robot đồng hành hỗ trợ sức khỏe tinh thần học sinh</p>", unsafe_allow_html=True)
     
-    # Dùng container để căn giữa
     with st.container():
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
