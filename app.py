@@ -12,40 +12,43 @@ import re
 
 # ==================== CẤU HÌNH TRANG ====================
 st.set_page_config(page_title="InnoMine-X", page_icon="🧠", layout="wide")
+
+# CSS đơn giản hóa, tương thích mọi trình duyệt
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;400;500;600;700&display=swap');
-    * { font-family: 'Inter', sans-serif; }
-    .stApp { background: linear-gradient(135deg, #F8FAFF 0%, #EEF2FF 100%); }
+    * { font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+    .stApp { background: #F0F4FA; }
     header, footer { visibility: hidden; }
     .main-title {
-        font-size: 2.5rem;
+        font-size: 2.2rem;
         font-weight: 700;
-        background: linear-gradient(135deg, #1E3A8A, #3B82F6);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
+        color: #1E3A8A;
         text-align: center;
     }
     .journal-entry {
         background: white;
-        border-radius: 24px;
+        border-radius: 20px;
         padding: 1rem;
         margin-bottom: 0.8rem;
         border-left: 4px solid #3B82F6;
-        transition: 0.15s;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.05);
     }
     .stButton button {
-        border-radius: 40px !important;
+        border-radius: 30px !important;
         background: #3B82F6 !important;
         color: white !important;
         font-weight: 600 !important;
         border: none !important;
     }
-    .stButton button:hover { background: #2563EB !important; transform: scale(1.02); }
+    .stButton button:hover { background: #2563EB !important; }
     .warning-green { background: #D1FAE5; border-left: 6px solid #10B981; padding: 0.75rem; border-radius: 16px; margin: 0.5rem 0; }
     .warning-yellow { background: #FEF3C7; border-left: 6px solid #F59E0B; padding: 0.75rem; border-radius: 16px; margin: 0.5rem 0; }
     .warning-orange { background: #FFEDD5; border-left: 6px solid #EA580C; padding: 0.75rem; border-radius: 16px; margin: 0.5rem 0; }
     .warning-red { background: #FEE2E2; border-left: 6px solid #DC2626; padding: 0.75rem; border-radius: 16px; margin: 0.5rem 0; }
+    @media (max-width: 768px) {
+        .main-title { font-size: 1.6rem; }
+        .journal-entry { padding: 0.75rem; }
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -57,21 +60,34 @@ STRESS_KEYWORDS = ["stress", "áp lực", "mệt mỏi", "căng thẳng", "lo l�
 def hash_password(pwd):
     return hashlib.sha256(pwd.encode()).hexdigest()
 
-# ==================== QUẢN LÝ USER ====================
+# ==================== QUẢN LÝ USER (Dùng file, nhưng có backup) ====================
 USER_FILE = "users.json"
+
+# Tạo user mặc định nếu file chưa tồn tại
 if not os.path.exists(USER_FILE):
+    default_users = {
+        "minh": hash_password("123"),
+        "lan": hash_password("456"),
+        "huy": hash_password("789")
+    }
     with open(USER_FILE, "w") as f:
-        json.dump({"minh": hash_password("123"), "lan": hash_password("456"), "huy": hash_password("789")}, f)
+        json.dump(default_users, f)
 
 def load_users():
-    with open(USER_FILE, "r") as f:
-        return json.load(f)
+    try:
+        with open(USER_FILE, "r") as f:
+            return json.load(f)
+    except:
+        return {}
+
 def save_users(users):
     with open(USER_FILE, "w") as f:
         json.dump(users, f)
+
 def authenticate(u, p):
     users = load_users()
     return users.get(u) == hash_password(p)
+
 def register_user(u, p):
     users = load_users()
     if u in users:
@@ -79,6 +95,7 @@ def register_user(u, p):
     users[u] = hash_password(p)
     save_users(users)
     return True
+
 def get_all_users():
     return list(load_users().keys())
 
@@ -255,7 +272,7 @@ else:
     st.error("⚠️ Thiếu GROQ_API_KEY trong Secrets.")
     st.stop()
 
-# ==================== ĐĂNG NHẬP ====================
+# ==================== ĐĂNG NHẬP (SỬA LỖI) ====================
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
     st.session_state.username = ""
@@ -267,35 +284,34 @@ if not st.session_state.logged_in:
         st.markdown("<p style='text-align:center'>Hệ thống AI & Robot đồng hành hỗ trợ sức khỏe tinh thần học sinh</p>", unsafe_allow_html=True)
         option = st.radio("", ["🔐 Đăng nhập", "🆕 Đăng ký"])
         if option == "🔐 Đăng nhập":
-            u = st.text_input("Tên đăng nhập")
-            p = st.text_input("Mật khẩu", type="password")
-            if st.button("Đăng nhập", use_container_width=True):
+            u = st.text_input("Tên đăng nhập", key="login_username")
+            p = st.text_input("Mật khẩu", type="password", key="login_password")
+            if st.button("Đăng nhập", use_container_width=True, key="login_btn"):
                 if authenticate(u, p):
                     st.session_state.logged_in = True
                     st.session_state.username = u
                     st.rerun()
                 else:
-                    st.error("Sai tên hoặc mật khẩu.")
+                    st.error("Sai tên hoặc mật khẩu. Nếu chưa có tài khoản, hãy chọn Đăng ký.")
         else:
-            u = st.text_input("Tên mới")
-            p = st.text_input("Mật khẩu", type="password")
-            c = st.text_input("Xác nhận mật khẩu", type="password")
-            if st.button("Đăng ký", use_container_width=True):
+            u = st.text_input("Tên mới (chữ thường, không dấu, ví dụ: an)", key="reg_username")
+            p = st.text_input("Mật khẩu", type="password", key="reg_password")
+            c = st.text_input("Xác nhận mật khẩu", type="password", key="reg_confirm")
+            if st.button("Đăng ký", use_container_width=True, key="reg_btn"):
                 if u and p and p == c and u.isalnum():
                     if register_user(u, p):
-                        st.session_state.logged_in = True
-                        st.session_state.username = u
-                        st.rerun()
+                        st.success("Đăng ký thành công! Hãy đăng nhập.")
+                        # Không tự động đăng nhập, để người dùng đăng nhập lại
                     else:
                         st.error("Tên đã tồn tại.")
                 else:
-                    st.error("Thông tin không hợp lệ.")
+                    st.error("Tên chỉ gồm chữ và số, mật khẩu phải khớp.")
     st.stop()
 
 user = st.session_state.username
 avatar = "🧠"
 
-# ==================== SIDEBAR (chỉ hiển thị lời mời và danh sách bạn bè) ====================
+# ==================== SIDEBAR ====================
 st.sidebar.markdown(f"### {avatar} {user}")
 st.sidebar.markdown("---")
 
@@ -347,7 +363,7 @@ else:
 # ==================== TABS ====================
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["📝 Nhật ký", "🧠 AI Insight", "🎯 Mục tiêu", "📊 Thống kê", "💬 Chat AI", "👥 Kết nối"])
 
-# --- Tab 1: Nhật ký (có ảnh) ---
+# --- Tab 1: Nhật ký ---
 with tab1:
     with st.form("journal_form"):
         work = st.text_area("Hôm nay bạn đã làm gì?")
@@ -385,7 +401,7 @@ with tab1:
     else:
         st.info("Chưa có nhật ký.")
 
-# --- Tab 2: AI Insight (giữ nguyên) ---
+# --- Tab 2: AI Insight ---
 with tab2:
     memory = load_memory(user)
     if memory:
@@ -407,7 +423,7 @@ with tab2:
     else:
         st.info("Cần ít nhất 3 nhật ký để phân tích.")
 
-# --- Tab 3: Mục tiêu (giữ nguyên) ---
+# --- Tab 3: Mục tiêu ---
 with tab3:
     goals = load_goals(user)
     with st.form("goal_form"):
@@ -424,7 +440,7 @@ with tab3:
     else:
         st.info("Chưa có mục tiêu.")
 
-# --- Tab 4: Thống kê (giữ nguyên) ---
+# --- Tab 4: Thống kê ---
 with tab4:
     journal = load_journal(user)
     if journal:
@@ -434,7 +450,7 @@ with tab4:
         if not mood_counts.empty:
             fig = px.bar(mood_counts, x="date", y="count", color="mood", title="Cảm xúc theo ngày")
             st.plotly_chart(fig, use_container_width=True)
-        st.subheader("Biểu đồ PGI (dữ liệu thực tế)")
+        st.subheader("Biểu đồ PGI")
         pgi_over_time = []
         for i in range(3, len(journal)+1):
             fake = journal[:i]
@@ -453,7 +469,7 @@ with tab4:
     else:
         st.info("Chưa có dữ liệu.")
 
-# --- Tab 5: Chat AI (giữ nguyên) ---
+# --- Tab 5: Chat AI ---
 with tab5:
     st.subheader("Trò chuyện cùng InnoMine")
     if "chat_history" not in st.session_state:
@@ -473,7 +489,7 @@ with tab5:
                     st.session_state.chat_history.append("**InnoMine:** Lỗi kết nối.")
             st.rerun()
 
-# --- Tab 6: Kết nối (kết bạn + chia sẻ, có ảnh) ---
+# --- Tab 6: Kết nối ---
 with tab6:
     st.subheader("👥 Kết bạn")
     all_users = get_all_users()
