@@ -112,7 +112,7 @@ def handle_voice_command(robot_ip):
             requests.get(f"http://{robot_ip}/control?action=relay_off", timeout=2)
             success_msg = "⚫ Đã tắt Relay theo giọng nói!"
         
-        # ---- Lệnh chụp ảnh (cần thao tác thủ công) ----
+        # ---- Lệnh chụp ảnh ----
         elif "chụp" in cmd or "ảnh" in cmd:
             success_msg = "📸 Đã nhận lệnh chụp ảnh. Hãy bấm nút 'Chụp ảnh' thủ công nhé!"
         
@@ -125,12 +125,12 @@ def handle_voice_command(robot_ip):
     except Exception as e:
         error_msg = f"❌ Lỗi xử lý lệnh: {e}"
     
-    # Hiển thị thông báo và xóa query param để tránh chạy lặp
     if success_msg:
         st.success(success_msg)
     if error_msg:
         st.error(error_msg)
     
+    # Xóa query param để không xử lý lại khi refresh
     st.query_params.clear()
     st.rerun()
 
