@@ -18,6 +18,9 @@ from fpdf import FPDF
 import time
 import random
 
+# ===== NHẬP VOICE UTILS =====
+from voice_utils import get_speech_html, handle_voice_command, render_tts
+
 # ==================== NÂNG CẤP: CẤU HÌNH TRANG + THEME ====================
 st.set_page_config(
     page_title="InnoMine-X",
@@ -374,6 +377,11 @@ if not st.session_state.logged_in:
 user = st.session_state.username
 avatar = "🧠"
 
+# ===== XỬ LÝ LỆNH VOICE NGAY SAU ĐĂNG NHẬP =====
+robot_ip = st.session_state.get("robot_ip", "192.168.8.126")
+handle_voice_command(robot_ip)
+# ===========================================
+
 # ==================== NÂNG CẤP: THEME TOGGLE BUTTON ====================
 st.sidebar.button("🌓 Chế độ tối/sáng", on_click=toggle_theme)
 
@@ -435,7 +443,7 @@ if goals:
         for g in overdue_goals:
             st.write(f"- {g['name']} ({g['progress']}%)")
 
-# ==================== TABS (đã sửa: thêm tab robot) ====================
+# ==================== TABS ====================
 tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "📝 Nhật ký", 
     "🧠 AI Insight", 
@@ -482,12 +490,12 @@ with tab1:
                 st.markdown("---")
             with col2:
                 if st.button("🗑️", key=f"del_journal_{idx}"):
-                    delete_entry(user, len(journal) - idx - 1)  # index thực tế
+                    delete_entry(user, len(journal) - idx - 1)
                     st.rerun()
     else:
         st.info("Chưa có nhật ký.")
 
-# --- Tab 2: AI Insight (giữ nguyên) ---
+# --- Tab 2: AI Insight ---
 with tab2:
     memory = load_memory(user)
     if memory:
@@ -545,7 +553,7 @@ with tab4:
             fig = px.bar(mood_counts, x="date", y="count", color="mood", title="Cảm xúc theo ngày")
             st.plotly_chart(fig, use_container_width=True)
         
-        # NÂNG CẤP: Biểu đồ tròn cảm xúc tuần
+        # Biểu đồ tròn cảm xúc tuần
         st.subheader("📊 Tỉ lệ cảm xúc trong 7 ngày qua")
         last_7 = df[df["date"] >= (dt.now().date() - timedelta(days=7))]
         if not last_7.empty:
@@ -574,10 +582,9 @@ with tab4:
         fig2.update_layout(title="Chỉ số phát triển cá nhân theo thời gian")
         st.plotly_chart(fig2, use_container_width=True)
         
-        # NÂNG CẤP: Dự đoán PGI (đường xu hướng đơn giản)
+        # Dự đoán PGI
         if len(pgi_over_time) >= 5:
             x = list(range(len(pgi_over_time)))
-            # Linear regression đơn giản
             n = len(x)
             sum_x = sum(x)
             sum_y = sum(pgi_over_time)
@@ -588,7 +595,7 @@ with tab4:
             next_pgi = slope * n + intercept
             st.metric("📈 Dự đoán PGI tiếp theo", f"{round(next_pgi, 1)}/100", delta=round(next_pgi - pgi_over_time[-1], 1))
         
-        # NÂNG CẤP: Export CSV
+        # Export CSV
         csv_data = df.to_csv(index=False)
         st.download_button(
             label="📥 Tải xuống CSV (nhật ký)",
@@ -597,7 +604,7 @@ with tab4:
             mime="text/csv"
         )
         
-        # NÂNG CẤP: Export PDF (dùng fpdf)
+        # Export PDF
         if st.button("📄 Xuất báo cáo PDF"):
             pdf = FPDF()
             pdf.add_page()
@@ -605,7 +612,7 @@ with tab4:
             pdf.cell(200, 10, txt=f"Báo cáo InnoMine-X của {user}", ln=1, align='C')
             pdf.ln(10)
             pdf.set_font("Arial", size=10)
-            for idx, entry in enumerate(journal[-10:]):
+            for entry in journal[-10:]:
                 pdf.cell(200, 10, txt=f"{entry['date'][:16]} - {entry['mood']}", ln=1)
                 pdf.multi_cell(0, 10, txt=entry['content'][:200])
                 pdf.ln(5)
@@ -619,7 +626,7 @@ with tab4:
     else:
         st.info("Chưa có dữ liệu.")
 
-# --- Tab 5: Chat AI (giữ nguyên) ---
+# --- Tab 5: Chat AI (đã tích hợp TTS) ---
 with tab5:
     st.subheader("Trò chuyện cùng InnoMine")
     if "chat_history" not in st.session_state:
@@ -635,11 +642,17 @@ with tab5:
                     res = client.chat.completions.create(messages=[{"role":"user","content":user_msg}], model="llama-3.1-8b-instant")
                     reply = res.choices[0].message.content
                     st.session_state.chat_history.append(f"**InnoMine:** {reply}")
+                    # Lưu reply vào session để TTS đọc
+                    st.session_state.reply = reply
                 except:
                     st.session_state.chat_history.append("**InnoMine:** Lỗi kết nối.")
             st.rerun()
+    
+    # Phát giọng nói cho phản hồi AI
+    if "reply" in st.session_state and st.session_state.reply:
+        render_tts(st.session_state.reply)
 
-# --- Tab 6: Kết nối (giữ nguyên) ---
+# --- Tab 6: Kết nối ---
 with tab6:
     st.subheader("👥 Kết bạn")
     all_users = get_all_users()
@@ -697,9 +710,15 @@ with tab6:
                 if p.get("image"):
                     st.image(p["image"], width=200)
 
-# ==================== TAB 7: ROBOT (đã sửa lỗi) ====================
+# ==================== TAB 7: ROBOT (đã tích hợp voice) ====================
 with tab7:
     st.subheader("🤖 Điều khiển InnoMine-X")
+    
+    # ===== PHẦN VOICE ĐIỀU KHIỂN =====
+    st.markdown("#### 🎤 Điều khiển robot bằng giọng nói")
+    st.write("Nhấn nút và nói lệnh (ví dụ: 'Bật LED Vui', 'Tắt rung', 'Bật Relay')")
+    st.components.v1.html(get_speech_html(), height=200)
+    st.markdown("---")
     
     # Kết nối robot
     robot_ip = st.text_input("Địa chỉ IP robot:", st.session_state.robot_ip)
@@ -779,13 +798,13 @@ with tab7:
             except:
                 st.error("❌ Lỗi kết nối")
         
-        # NÂNG CẤP: Hiển thị hoạt động robot
+        # Hiển thị hoạt động robot
         if st.session_state.robot_activities:
             st.markdown("#### 📋 Hoạt động gần đây")
             for act in st.session_state.robot_activities[-5:]:
                 st.write(f"- {act['time']}: {act['activity']} (cảm xúc: {act['emotion']})")
     
-    # ==================== TẠO LỘ TRÌNH HỌC TẬP (nâng cấp) ====================
+    # ===== LỘ TRÌNH HỌC TẬP =====
     def generate_learning_path():
         activities = st.session_state.get("robot_activities", [])
         journal = load_journal(user)
@@ -812,7 +831,6 @@ with tab7:
             suggestions.append("🌟 Bạn đang có lịch trình tốt! Hãy duy trì nhé.")
         return suggestions
     
-    # Hiển thị lộ trình
     if st.button("🔄 Tạo lộ trình học tập"):
         suggestions = generate_learning_path()
         st.session_state.learning_path = suggestions
@@ -822,7 +840,7 @@ with tab7:
         for i, suggestion in enumerate(st.session_state.learning_path, 1):
             st.write(f"{i}. {suggestion}")
     
-    # NÂNG CẤP: Ghi nhận hoạt động từ người dùng (mô phỏng)
+    # Ghi nhận hoạt động thủ công
     st.markdown("#### 📝 Ghi nhận hoạt động (mô phỏng)")
     activity_input = st.text_input("Nhập hoạt động bạn vừa làm (ví dụ: học Toán, nghỉ ngơi, ...)")
     emotion_input = st.selectbox("Cảm xúc khi đó", ["😊 Vui", "😐 Bình thường", "😢 Buồn", "🤔 Suy tư"])
