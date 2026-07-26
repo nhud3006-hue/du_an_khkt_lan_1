@@ -1,4 +1,6 @@
-streamlit
-groq
-pandas
+fpdf
+requests
+Pillow
 plotly
+pandas
+groq
