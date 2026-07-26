@@ -48,7 +48,7 @@ def get_speech_html():
                 resultEl.textContent = '✅ Bạn nói: ' + text;
                 statusEl.textContent = '⏳ Đang gửi lệnh...';
                 
-                // Gửi lên Streamlit backend bằng query param (cách đơn giản nhất)
+                // Gửi lên Streamlit backend bằng query param
                 const currentUrl = new URL(window.location.href);
                 currentUrl.searchParams.set('voice_cmd', text);
                 window.location.href = currentUrl.toString();
@@ -112,7 +112,7 @@ def handle_voice_command(robot_ip):
             requests.get(f"http://{robot_ip}/control?action=relay_off", timeout=2)
             success_msg = "⚫ Đã tắt Relay theo giọng nói!"
         
-        # ---- Lệnh chụp ảnh (chưa tự động được do cần lưu ảnh) ----
+        # ---- Lệnh chụp ảnh (cần thao tác thủ công) ----
         elif "chụp" in cmd or "ảnh" in cmd:
             success_msg = "📸 Đã nhận lệnh chụp ảnh. Hãy bấm nút 'Chụp ảnh' thủ công nhé!"
         
@@ -131,7 +131,6 @@ def handle_voice_command(robot_ip):
     if error_msg:
         st.error(error_msg)
     
-    # Xóa tham số trên URL để không xử lý lần sau (tránh refresh bị lặp)
     st.query_params.clear()
     st.rerun()
 
@@ -150,14 +149,14 @@ def render_tts(text, lang='vi'):
     try:
         # Tạo file MP3 tạm
         with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3') as tmpfile:
-            tts = gTTS(text=text[:350], lang=lang)  # Giới hạn 350 ký tự để xử lý nhanh
+            tts = gTTS(text=text[:350], lang=lang)
             tts.save(tmpfile.name)
             tmpfile_path = tmpfile.name
         
         # Đọc file và mã hóa base64
         with open(tmpfile_path, 'rb') as f:
             audio_bytes = f.read()
-        os.unlink(tmpfile_path)  # Xóa ngay sau khi đọc
+        os.unlink(tmpfile_path)
         
         audio_b64 = base64.b64encode(audio_bytes).decode()
         audio_html = f'''
