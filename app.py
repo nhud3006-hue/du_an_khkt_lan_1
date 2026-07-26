@@ -18,10 +18,14 @@ from fpdf import FPDF
 import time
 import random
 
-# ===== NHẬP VOICE UTILS =====
-from voice_utils import get_speech_html, handle_voice_command, render_tts
+# ==================== IMPORT VOICE UTILS ====================
+try:
+    from voice_utils import get_speech_html, handle_voice_command, render_tts
+except ModuleNotFoundError:
+    st.error("⚠️ Không tìm thấy file voice_utils.py. Hãy tạo file này cùng thư mục với app.py")
+    st.stop()
 
-# ==================== NÂNG CẤP: CẤU HÌNH TRANG + THEME ====================
+# ==================== CẤU HÌNH TRANG + THEME ====================
 st.set_page_config(
     page_title="InnoMine-X",
     page_icon="🧠",
@@ -29,13 +33,12 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# ==================== NÂNG CẤP: THEME TOGGLE ====================
+# ==================== THEME TOGGLE ====================
 if "dark_mode" not in st.session_state:
     st.session_state.dark_mode = False
 
 def toggle_theme():
     st.session_state.dark_mode = not st.session_state.dark_mode
-    # Inject CSS tùy chỉnh
     if st.session_state.dark_mode:
         st.markdown("""
             <style>
@@ -59,7 +62,7 @@ def toggle_theme():
 MOOD_SCORE = {"😢 Buồn": 2, "😐 Bình thường": 5, "😊 Vui vẻ": 8, "🤔 Suy tư": 6, "😎 Tự tin": 9, "✨ Hy vọng": 9}
 STRESS_KEYWORDS = ["stress", "áp lực", "mệt mỏi", "căng thẳng", "lo lắng", "mất ngủ", "cô đơn", "buồn"]
 
-# ==================== NÂNG CẤP: SALT CHO MẬT KHẨU ====================
+# ==================== SALT CHO MẬT KHẨU ====================
 SALT_LENGTH = 32
 def get_salt():
     salt_file = "salt.bin"
@@ -77,7 +80,7 @@ SALT = get_salt()
 def hash_password(pwd):
     return hashlib.pbkdf2_hmac('sha256', pwd.encode('utf-8'), SALT, 100000).hex()
 
-# ==================== QUẢN LÝ USER (có salt) ====================
+# ==================== QUẢN LÝ USER ====================
 USER_FILE = "users.json"
 if not os.path.exists(USER_FILE):
     default_users = {
@@ -116,7 +119,7 @@ def register_user(u, p):
 def get_all_users():
     return list(load_users().keys())
 
-# ==================== BẠN BÈ & CHIA SẺ (có cache) ====================
+# ==================== BẠN BÈ & CHIA SẺ ====================
 @st.cache_data(ttl=30)
 def get_friends(u):
     fname = f"{u}_friends.json"
@@ -179,7 +182,7 @@ def add_shared_post(u, post):
         json.dump(posts[:20], f)
     st.cache_data.clear()
 
-# ==================== NHẬT KÝ & MỤC TIÊU (có cache) ====================
+# ==================== NHẬT KÝ & MỤC TIÊU ====================
 @st.cache_data(ttl=30)
 def load_journal(u):
     fname = f"{u}_journal.json"
@@ -246,7 +249,7 @@ def add_memory(u, event):
     mem.append({"date": dt.now().isoformat(), "event": event})
     save_memory(u, mem[-20:])
 
-# ==================== TÍNH TOÁN PGI (có cache) ====================
+# ==================== TÍNH TOÁN PGI ====================
 @st.cache_data(ttl=60)
 def compute_pgi(user):
     journal = load_journal(user)
@@ -310,7 +313,7 @@ def early_warning_level(user):
     else:
         return "🟢 Xanh", "Ổn định", "green"
 
-# ==================== ROBOT (khởi tạo session) ====================
+# ==================== ROBOT ====================
 if "robot_led" not in st.session_state:
     st.session_state.robot_led = False
 if "robot_activities" not in st.session_state:
@@ -377,12 +380,12 @@ if not st.session_state.logged_in:
 user = st.session_state.username
 avatar = "🧠"
 
-# ===== XỬ LÝ LỆNH VOICE NGAY SAU ĐĂNG NHẬP =====
+# ==================== XỬ LÝ LỆNH VOICE (THÊM MỚI) ====================
+# Lấy IP robot từ session (nếu đã kết nối) hoặc dùng mặc định
 robot_ip = st.session_state.get("robot_ip", "192.168.8.126")
 handle_voice_command(robot_ip)
-# ===========================================
 
-# ==================== NÂNG CẤP: THEME TOGGLE BUTTON ====================
+# ==================== THEME TOGGLE BUTTON ====================
 st.sidebar.button("🌓 Chế độ tối/sáng", on_click=toggle_theme)
 
 # ==================== SIDEBAR ====================
@@ -434,7 +437,7 @@ elif warning_color == "yellow":
 else:
     st.success(f"✅ TRẠNG THÁI XANH: {warning_desc}")
 
-# ==================== NÂNG CẤP: NHẮC NHỞ MỤC TIÊU ====================
+# ==================== NHẮC NHỞ MỤC TIÊU ====================
 goals = load_goals(user)
 if goals:
     overdue_goals = [g for g in goals if g["progress"] < 50 and g.get("created_at", dt.now().isoformat()) < (dt.now() - timedelta(days=7)).isoformat()]
@@ -454,7 +457,7 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "🤖 Robot"
 ])
 
-# --- Tab 1: Nhật ký (có xóa) ---
+# --- Tab 1: Nhật ký ---
 with tab1:
     with st.form("journal_form"):
         work = st.text_area("Hôm nay bạn đã làm gì?")
@@ -517,7 +520,7 @@ with tab2:
     else:
         st.info("Cần ít nhất 3 nhật ký để phân tích.")
 
-# --- Tab 3: Mục tiêu (có xóa) ---
+# --- Tab 3: Mục tiêu ---
 with tab3:
     goals = load_goals(user)
     with st.form("goal_form"):
@@ -541,11 +544,10 @@ with tab3:
     else:
         st.info("Chưa có mục tiêu.")
 
-# --- Tab 4: Thống kê (nâng cấp thêm biểu đồ tròn và export) ---
+# --- Tab 4: Thống kê ---
 with tab4:
     journal = load_journal(user)
     if journal:
-        # Biểu đồ cột
         df = pd.DataFrame(journal)
         df["date"] = pd.to_datetime(df["date"]).dt.date
         mood_counts = df.groupby(["date", "mood"]).size().reset_index(name="count")
@@ -553,7 +555,6 @@ with tab4:
             fig = px.bar(mood_counts, x="date", y="count", color="mood", title="Cảm xúc theo ngày")
             st.plotly_chart(fig, use_container_width=True)
         
-        # Biểu đồ tròn cảm xúc tuần
         st.subheader("📊 Tỉ lệ cảm xúc trong 7 ngày qua")
         last_7 = df[df["date"] >= (dt.now().date() - timedelta(days=7))]
         if not last_7.empty:
@@ -564,7 +565,6 @@ with tab4:
         else:
             st.info("Chưa đủ dữ liệu 7 ngày.")
         
-        # Biểu đồ PGI
         st.subheader("Biểu đồ PGI")
         pgi_over_time = []
         for i in range(3, len(journal)+1):
@@ -582,7 +582,6 @@ with tab4:
         fig2.update_layout(title="Chỉ số phát triển cá nhân theo thời gian")
         st.plotly_chart(fig2, use_container_width=True)
         
-        # Dự đoán PGI
         if len(pgi_over_time) >= 5:
             x = list(range(len(pgi_over_time)))
             n = len(x)
@@ -595,7 +594,6 @@ with tab4:
             next_pgi = slope * n + intercept
             st.metric("📈 Dự đoán PGI tiếp theo", f"{round(next_pgi, 1)}/100", delta=round(next_pgi - pgi_over_time[-1], 1))
         
-        # Export CSV
         csv_data = df.to_csv(index=False)
         st.download_button(
             label="📥 Tải xuống CSV (nhật ký)",
@@ -604,7 +602,6 @@ with tab4:
             mime="text/csv"
         )
         
-        # Export PDF
         if st.button("📄 Xuất báo cáo PDF"):
             pdf = FPDF()
             pdf.add_page()
@@ -626,7 +623,7 @@ with tab4:
     else:
         st.info("Chưa có dữ liệu.")
 
-# --- Tab 5: Chat AI (đã tích hợp TTS) ---
+# --- Tab 5: Chat AI (có TTS) ---
 with tab5:
     st.subheader("Trò chuyện cùng InnoMine")
     if "chat_history" not in st.session_state:
@@ -642,13 +639,13 @@ with tab5:
                     res = client.chat.completions.create(messages=[{"role":"user","content":user_msg}], model="llama-3.1-8b-instant")
                     reply = res.choices[0].message.content
                     st.session_state.chat_history.append(f"**InnoMine:** {reply}")
-                    # Lưu reply vào session để TTS đọc
+                    # Lưu reply để đọc TTS
                     st.session_state.reply = reply
                 except:
                     st.session_state.chat_history.append("**InnoMine:** Lỗi kết nối.")
             st.rerun()
     
-    # Phát giọng nói cho phản hồi AI
+    # Phát âm thanh phản hồi AI nếu có
     if "reply" in st.session_state and st.session_state.reply:
         render_tts(st.session_state.reply)
 
@@ -710,15 +707,9 @@ with tab6:
                 if p.get("image"):
                     st.image(p["image"], width=200)
 
-# ==================== TAB 7: ROBOT (đã tích hợp voice) ====================
+# --- Tab 7: Robot (có voice) ---
 with tab7:
     st.subheader("🤖 Điều khiển InnoMine-X")
-    
-    # ===== PHẦN VOICE ĐIỀU KHIỂN =====
-    st.markdown("#### 🎤 Điều khiển robot bằng giọng nói")
-    st.write("Nhấn nút và nói lệnh (ví dụ: 'Bật LED Vui', 'Tắt rung', 'Bật Relay')")
-    st.components.v1.html(get_speech_html(), height=200)
-    st.markdown("---")
     
     # Kết nối robot
     robot_ip = st.text_input("Địa chỉ IP robot:", st.session_state.robot_ip)
@@ -804,7 +795,13 @@ with tab7:
             for act in st.session_state.robot_activities[-5:]:
                 st.write(f"- {act['time']}: {act['activity']} (cảm xúc: {act['emotion']})")
     
-    # ===== LỘ TRÌNH HỌC TẬP =====
+    # ===== PHẦN VOICE ĐIỀU KHIỂN ROBOT (THÊM MỚI) =====
+    st.markdown("---")
+    st.markdown("#### 🎤 Điều khiển robot bằng giọng nói")
+    st.write("Nhấn nút và nói lệnh (ví dụ: 'Bật LED vui', 'Tắt rung', 'Bật Relay')")
+    st.components.v1.html(get_speech_html(), height=200)
+    
+    # ===== TẠO LỘ TRÌNH HỌC TẬP =====
     def generate_learning_path():
         activities = st.session_state.get("robot_activities", [])
         journal = load_journal(user)
