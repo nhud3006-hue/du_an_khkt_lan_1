@@ -14,13 +14,11 @@ import io
 from PIL import Image
 import base64
 import csv
-from fpdf import FPDF
 import time
 import random
-import tempfile
-from gtts import gTTS
+from fpdf import FPDF
 
-# ==================== CẤU HÌNH TRANG + THEME ====================
+# ==================== NÂNG CẤP: CẤU HÌNH TRANG + THEME ====================
 st.set_page_config(
     page_title="InnoMine-X",
     page_icon="🧠",
@@ -28,12 +26,13 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# ==================== THEME TOGGLE ====================
+# ==================== NÂNG CẤP: THEME TOGGLE ====================
 if "dark_mode" not in st.session_state:
     st.session_state.dark_mode = False
 
 def toggle_theme():
     st.session_state.dark_mode = not st.session_state.dark_mode
+    # Inject CSS tùy chỉnh
     if st.session_state.dark_mode:
         st.markdown("""
             <style>
@@ -57,7 +56,7 @@ def toggle_theme():
 MOOD_SCORE = {"😢 Buồn": 2, "😐 Bình thường": 5, "😊 Vui vẻ": 8, "🤔 Suy tư": 6, "😎 Tự tin": 9, "✨ Hy vọng": 9}
 STRESS_KEYWORDS = ["stress", "áp lực", "mệt mỏi", "căng thẳng", "lo lắng", "mất ngủ", "cô đơn", "buồn"]
 
-# ==================== SALT CHO MẬT KHẨU ====================
+# ==================== NÂNG CẤP: SALT CHO MẬT KHẨU ====================
 SALT_LENGTH = 32
 def get_salt():
     salt_file = "salt.bin"
@@ -75,7 +74,7 @@ SALT = get_salt()
 def hash_password(pwd):
     return hashlib.pbkdf2_hmac('sha256', pwd.encode('utf-8'), SALT, 100000).hex()
 
-# ==================== QUẢN LÝ USER ====================
+# ==================== QUẢN LÝ USER (có salt) ====================
 USER_FILE = "users.json"
 if not os.path.exists(USER_FILE):
     default_users = {
@@ -114,7 +113,7 @@ def register_user(u, p):
 def get_all_users():
     return list(load_users().keys())
 
-# ==================== BẠN BÈ & CHIA SẺ ====================
+# ==================== BẠN BÈ & CHIA SẺ (có cache) ====================
 @st.cache_data(ttl=30)
 def get_friends(u):
     fname = f"{u}_friends.json"
@@ -177,7 +176,7 @@ def add_shared_post(u, post):
         json.dump(posts[:20], f)
     st.cache_data.clear()
 
-# ==================== NHẬT KÝ & MỤC TIÊU ====================
+# ==================== NHẬT KÝ & MỤC TIÊU (có cache) ====================
 @st.cache_data(ttl=30)
 def load_journal(u):
     fname = f"{u}_journal.json"
@@ -244,7 +243,7 @@ def add_memory(u, event):
     mem.append({"date": dt.now().isoformat(), "event": event})
     save_memory(u, mem[-20:])
 
-# ==================== TÍNH TOÁN PGI ====================
+# ==================== TÍNH TOÁN PGI (có cache) ====================
 @st.cache_data(ttl=60)
 def compute_pgi(user):
     journal = load_journal(user)
@@ -308,7 +307,7 @@ def early_warning_level(user):
     else:
         return "🟢 Xanh", "Ổn định", "green"
 
-# ==================== ROBOT ====================
+# ==================== ROBOT (khởi tạo session) ====================
 if "robot_led" not in st.session_state:
     st.session_state.robot_led = False
 if "robot_activities" not in st.session_state:
@@ -323,134 +322,6 @@ def robot_alert(level):
         st.session_state.robot_led = True
     else:
         st.session_state.robot_led = False
-
-# ==================== VOICE UTILS (gộp từ voice_utils.py) ====================
-def get_speech_html():
-    return """
-    <div id="speech_container">
-        <button id="start_btn" style="padding: 15px 30px; font-size: 20px; background: #4CAF50; color: white; border: none; border-radius: 10px; cursor: pointer;">
-            🎤 Nhấn và nói
-        </button>
-        <p id="status" style="margin-top: 10px; color: #888;">Nhấn nút để bắt đầu</p>
-        <p id="result" style="margin-top: 10px; font-weight: bold; color: #ff5722;"></p>
-    </div>
-    <script>
-        const startBtn = document.getElementById('start_btn');
-        const statusEl = document.getElementById('status');
-        const resultEl = document.getElementById('result');
-        let recognition;
-        
-        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            recognition = new SpeechRecognition();
-            recognition.lang = 'vi-VN';
-            recognition.continuous = false;
-            recognition.interimResults = false;
-
-            startBtn.onclick = function() {
-                statusEl.textContent = '🎧 Đang nghe... Hãy nói lệnh!';
-                startBtn.disabled = true;
-                startBtn.style.background = '#f44336';
-                resultEl.textContent = '';
-                recognition.start();
-            };
-
-            recognition.onresult = function(event) {
-                const last = event.results.length - 1;
-                const text = event.results[last][0].transcript;
-                resultEl.textContent = '✅ Bạn nói: ' + text;
-                statusEl.textContent = '⏳ Đang gửi lệnh...';
-                
-                const currentUrl = new URL(window.location.href);
-                currentUrl.searchParams.set('voice_cmd', text);
-                window.location.href = currentUrl.toString();
-            };
-
-            recognition.onerror = function(event) {
-                statusEl.textContent = '❌ Lỗi: ' + event.error + '. Thử lại nhé!';
-                startBtn.disabled = false;
-                startBtn.style.background = '#4CAF50';
-            };
-            
-            recognition.onend = function() {
-                startBtn.disabled = false;
-                startBtn.style.background = '#4CAF50';
-            };
-        } else {
-            statusEl.textContent = '❌ Trình duyệt không hỗ trợ voice. Dùng Chrome/Edge nhé!';
-        }
-    </script>
-    """
-
-def handle_voice_command(robot_ip):
-    cmd = st.query_params.get("voice_cmd")
-    if not cmd:
-        return
-    
-    cmd = str(cmd).strip().lower()
-    success_msg = ""
-    error_msg = ""
-    
-    try:
-        if "led" in cmd and "vui" in cmd:
-            requests.get(f"http://{robot_ip}/control?action=led_vui", timeout=2)
-            success_msg = "😊 Đã bật LED Vui theo giọng nói!"
-        elif "led" in cmd and "buồn" in cmd:
-            requests.get(f"http://{robot_ip}/control?action=led_buon", timeout=2)
-            success_msg = "😢 Đã bật LED Buồn theo giọng nói!"
-        elif "led" in cmd and ("tắt" in cmd or "off" in cmd):
-            requests.get(f"http://{robot_ip}/control?action=led_off", timeout=2)
-            success_msg = "⏹ Đã tắt LED theo giọng nói!"
-        elif "rung" in cmd and ("bật" in cmd or "mở" in cmd or "on" in cmd):
-            requests.get(f"http://{robot_ip}/control?action=rung_on", timeout=2)
-            success_msg = "📳 Đã bật rung theo giọng nói!"
-        elif "rung" in cmd and ("tắt" in cmd or "đóng" in cmd or "off" in cmd):
-            requests.get(f"http://{robot_ip}/control?action=rung_off", timeout=2)
-            success_msg = "📳 Đã tắt rung theo giọng nói!"
-        elif "relay" in cmd and ("bật" in cmd or "mở" in cmd or "on" in cmd):
-            requests.get(f"http://{robot_ip}/control?action=relay_on", timeout=2)
-            success_msg = "🔴 Đã bật Relay theo giọng nói!"
-        elif "relay" in cmd and ("tắt" in cmd or "đóng" in cmd or "off" in cmd):
-            requests.get(f"http://{robot_ip}/control?action=relay_off", timeout=2)
-            success_msg = "⚫ Đã tắt Relay theo giọng nói!"
-        elif "chụp" in cmd or "ảnh" in cmd:
-            success_msg = "📸 Đã nhận lệnh chụp ảnh. Hãy bấm nút 'Chụp ảnh' thủ công nhé!"
-        else:
-            error_msg = f"🤔 Không hiểu lệnh: '{cmd}'. Thử: 'Bật LED Vui', 'Tắt rung', 'Bật Relay'..."
-    except requests.exceptions.ConnectionError:
-        error_msg = "❌ Không kết nối được robot. Kiểm tra IP và Wifi!"
-    except Exception as e:
-        error_msg = f"❌ Lỗi xử lý lệnh: {e}"
-    
-    if success_msg:
-        st.success(success_msg)
-    if error_msg:
-        st.error(error_msg)
-    
-    st.query_params.clear()
-    st.rerun()
-
-def render_tts(text, lang='vi'):
-    if not text or len(text.strip()) < 2:
-        return
-    try:
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3') as tmpfile:
-            tts = gTTS(text=text[:350], lang=lang)
-            tts.save(tmpfile.name)
-            tmpfile_path = tmpfile.name
-        with open(tmpfile_path, 'rb') as f:
-            audio_bytes = f.read()
-        os.unlink(tmpfile_path)
-        audio_b64 = base64.b64encode(audio_bytes).decode()
-        audio_html = f'''
-            <audio autoplay controls style="width: 100%; margin-top: 10px;">
-                <source src="data:audio/mp3;base64,{audio_b64}" type="audio/mp3">
-                Trình duyệt của bạn không hỗ trợ audio.
-            </audio>
-        '''
-        st.markdown(audio_html, unsafe_allow_html=True)
-    except Exception as e:
-        st.warning(f"⚠️ Không thể phát giọng nói: {e}")
 
 # ==================== GROQ ====================
 if "GROQ_API_KEY" in st.secrets:
@@ -503,9 +374,53 @@ if not st.session_state.logged_in:
 user = st.session_state.username
 avatar = "🧠"
 
-# ==================== XỬ LÝ LỆNH VOICE (sau đăng nhập) ====================
-robot_ip = st.session_state.get("robot_ip", "192.168.8.126")
-handle_voice_command(robot_ip)
+# ==================== XỬ LÝ LỆNH VOICE (không dùng thư viện ngoài) ====================
+def handle_voice_command():
+    """Đọc lệnh thoại từ query_params và gọi robot"""
+    cmd = st.query_params.get("voice_cmd")
+    if not cmd:
+        return
+    cmd = str(cmd).strip().lower()
+    ip = st.session_state.get("robot_ip", "192.168.8.126")
+    success = None
+    error = None
+    try:
+        if "led" in cmd and "vui" in cmd:
+            requests.get(f"http://{ip}/control?action=led_vui", timeout=2)
+            success = "😊 Đã bật LED Vui!"
+        elif "led" in cmd and "buồn" in cmd:
+            requests.get(f"http://{ip}/control?action=led_buon", timeout=2)
+            success = "😢 Đã bật LED Buồn!"
+        elif "led" in cmd and ("tắt" in cmd or "off" in cmd):
+            requests.get(f"http://{ip}/control?action=led_off", timeout=2)
+            success = "⏹ Đã tắt LED!"
+        elif "rung" in cmd and ("bật" in cmd or "mở" in cmd):
+            requests.get(f"http://{ip}/control?action=rung_on", timeout=2)
+            success = "📳 Đã bật rung!"
+        elif "rung" in cmd and ("tắt" in cmd or "đóng" in cmd):
+            requests.get(f"http://{ip}/control?action=rung_off", timeout=2)
+            success = "📳 Đã tắt rung!"
+        elif "relay" in cmd and ("bật" in cmd or "mở" in cmd):
+            requests.get(f"http://{ip}/control?action=relay_on", timeout=2)
+            success = "🔴 Đã bật Relay!"
+        elif "relay" in cmd and ("tắt" in cmd or "đóng" in cmd):
+            requests.get(f"http://{ip}/control?action=relay_off", timeout=2)
+            success = "⚫ Đã tắt Relay!"
+        elif "chụp" in cmd or "ảnh" in cmd:
+            success = "📸 Đã nhận lệnh chụp ảnh. Bấm nút thủ công nhé!"
+        else:
+            error = f"🤔 Không hiểu lệnh: '{cmd}'. Thử 'Bật LED vui', 'Tắt rung'..."
+    except Exception as e:
+        error = f"❌ Lỗi kết nối robot: {e}"
+    if success:
+        st.success(success)
+    if error:
+        st.error(error)
+    st.query_params.clear()
+    st.rerun()
+
+# Gọi xử lý lệnh ngay sau đăng nhập
+handle_voice_command()
 
 # ==================== SIDEBAR ====================
 st.sidebar.button("🌓 Chế độ tối/sáng", on_click=toggle_theme)
@@ -566,7 +481,7 @@ if goals:
         for g in overdue_goals:
             st.write(f"- {g['name']} ({g['progress']}%)")
 
-# ==================== TABS ====================
+# ==================== TABS (có tab robot) ====================
 tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "📝 Nhật ký", 
     "🧠 AI Insight", 
@@ -596,7 +511,10 @@ with tab1:
             prompt = f"Người dùng viết: {work}. Cảm xúc: {mood}. Đưa ra nhận xét ngắn, không tâng bốc, chỉ ra xu hướng tích cực nếu có."
             try:
                 res = client.chat.completions.create(messages=[{"role":"user","content":prompt}], model="llama-3.1-8b-instant", temperature=0.7)
-                st.info(f"💡 {res.choices[0].message.content}")
+                ai_reply = res.choices[0].message.content
+                st.info(f"💡 {ai_reply}")
+                # Lưu reply vào session để TTS
+                st.session_state.last_ai_reply = ai_reply
             except:
                 st.info("AI tạm thời bận.")
         st.rerun()
@@ -634,7 +552,9 @@ with tab2:
         with st.spinner("Đang phân tích..."):
             try:
                 res = client.chat.completions.create(messages=[{"role":"user","content":prompt}], model="llama-3.1-8b-instant")
-                st.info(res.choices[0].message.content)
+                insight = res.choices[0].message.content
+                st.info(insight)
+                st.session_state.last_ai_reply = insight  # cho TTS
             except:
                 st.error("Lỗi AI.")
     else:
@@ -664,7 +584,7 @@ with tab3:
     else:
         st.info("Chưa có mục tiêu.")
 
-# --- Tab 4: Thống kê ---
+# --- Tab 4: Thống kê (có export) ---
 with tab4:
     journal = load_journal(user)
     if journal:
@@ -743,17 +663,13 @@ with tab4:
     else:
         st.info("Chưa có dữ liệu.")
 
-# --- Tab 5: Chat AI (có TTS) ---
+# --- Tab 5: Chat AI (có TTS bằng Web Speech) ---
 with tab5:
     st.subheader("Trò chuyện cùng InnoMine")
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
-    if "reply" not in st.session_state:
-        st.session_state.reply = ""
-    
     for msg in st.session_state.chat_history:
         st.write(msg)
-    
     user_msg = st.text_input("Bạn muốn nói gì?")
     if st.button("Gửi"):
         if user_msg:
@@ -763,14 +679,32 @@ with tab5:
                     res = client.chat.completions.create(messages=[{"role":"user","content":user_msg}], model="llama-3.1-8b-instant")
                     reply = res.choices[0].message.content
                     st.session_state.chat_history.append(f"**InnoMine:** {reply}")
-                    st.session_state.reply = reply
+                    st.session_state.last_ai_reply = reply
                 except:
                     st.session_state.chat_history.append("**InnoMine:** Lỗi kết nối.")
             st.rerun()
     
-    # Phát giọng nói nếu có reply
-    if st.session_state.reply:
-        render_tts(st.session_state.reply)
+    # Phần đọc giọng nói (TTS) - dùng Web Speech API
+    if "last_ai_reply" in st.session_state and st.session_state.last_ai_reply:
+        st.markdown("#### 🗣️ Nghe phản hồi")
+        reply_text = st.session_state.last_ai_reply
+        # Tạo button để đọc
+        if st.button("🔊 Đọc to"):
+            # Mã hóa text để truyền vào JS
+            import json
+            safe_text = json.dumps(reply_text)
+            js_code = f"""
+                <script>
+                    const msg = {safe_text};
+                    const utterance = new SpeechSynthesisUtterance(msg);
+                    utterance.lang = 'vi-VN';
+                    utterance.rate = 0.9;
+                    utterance.pitch = 1;
+                    window.speechSynthesis.speak(utterance);
+                </script>
+            """
+            st.components.v1.html(js_code, height=0)
+        # Tự động đọc (nếu muốn) - nhưng để an toàn thì dùng button
 
 # --- Tab 6: Kết nối ---
 with tab6:
@@ -830,10 +764,11 @@ with tab6:
                 if p.get("image"):
                     st.image(p["image"], width=200)
 
-# --- Tab 7: Robot (có voice) ---
+# ==================== TAB 7: ROBOT (có voice control) ====================
 with tab7:
     st.subheader("🤖 Điều khiển InnoMine-X")
     
+    # Kết nối robot
     robot_ip = st.text_input("Địa chỉ IP robot:", st.session_state.robot_ip)
     if st.button("🔗 Kết nối"):
         try:
@@ -911,16 +846,76 @@ with tab7:
             except:
                 st.error("❌ Lỗi kết nối")
         
+        # Hoạt động robot gần đây
         if st.session_state.robot_activities:
             st.markdown("#### 📋 Hoạt động gần đây")
             for act in st.session_state.robot_activities[-5:]:
                 st.write(f"- {act['time']}: {act['activity']} (cảm xúc: {act['emotion']})")
     
-    # ========== VOICE CONTROL ==========
+    # ===== VOICE CONTROL (nhúng HTML) =====
+    st.markdown("---")
     st.markdown("#### 🎤 Điều khiển robot bằng giọng nói")
-    st.components.v1.html(get_speech_html(), height=200)
+    st.write("Nhấn nút và nói lệnh (ví dụ: 'Bật LED vui', 'Tắt rung', 'Chụp ảnh')")
     
-    # ========== LỘ TRÌNH HỌC TẬP ==========
+    voice_html = """
+    <div id="speech_container">
+        <button id="start_btn" style="padding: 15px 30px; font-size: 20px; background: #4CAF50; color: white; border: none; border-radius: 10px; cursor: pointer;">
+            🎤 Nhấn và nói
+        </button>
+        <p id="status" style="margin-top: 10px; color: #888;">Nhấn nút để bắt đầu</p>
+        <p id="result" style="margin-top: 10px; font-weight: bold; color: #ff5722;"></p>
+    </div>
+    <script>
+        const startBtn = document.getElementById('start_btn');
+        const statusEl = document.getElementById('status');
+        const resultEl = document.getElementById('result');
+        let recognition;
+        
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
+            recognition.lang = 'vi-VN';
+            recognition.continuous = false;
+            recognition.interimResults = false;
+
+            startBtn.onclick = function() {
+                statusEl.textContent = '🎧 Đang nghe... Hãy nói lệnh!';
+                startBtn.disabled = true;
+                startBtn.style.background = '#f44336';
+                resultEl.textContent = '';
+                recognition.start();
+            };
+
+            recognition.onresult = function(event) {
+                const last = event.results.length - 1;
+                const text = event.results[last][0].transcript;
+                resultEl.textContent = '✅ Bạn nói: ' + text;
+                statusEl.textContent = '⏳ Đang gửi lệnh...';
+                
+                const currentUrl = new URL(window.location.href);
+                currentUrl.searchParams.set('voice_cmd', text);
+                window.location.href = currentUrl.toString();
+            };
+
+            recognition.onerror = function(event) {
+                statusEl.textContent = '❌ Lỗi: ' + event.error + '. Thử lại nhé!';
+                startBtn.disabled = false;
+                startBtn.style.background = '#4CAF50';
+            };
+            
+            recognition.onend = function() {
+                startBtn.disabled = false;
+                startBtn.style.background = '#4CAF50';
+            };
+        } else {
+            statusEl.textContent = '❌ Trình duyệt không hỗ trợ voice. Dùng Chrome/Edge nhé!';
+        }
+    </script>
+    """
+    st.components.v1.html(voice_html, height=200)
+    
+    # ---- Lộ trình học tập ----
+    st.markdown("---")
     def generate_learning_path():
         activities = st.session_state.get("robot_activities", [])
         journal = load_journal(user)
@@ -956,6 +951,7 @@ with tab7:
         for i, suggestion in enumerate(st.session_state.learning_path, 1):
             st.write(f"{i}. {suggestion}")
     
+    # Ghi nhận hoạt động thủ công
     st.markdown("#### 📝 Ghi nhận hoạt động (mô phỏng)")
     activity_input = st.text_input("Nhập hoạt động bạn vừa làm (ví dụ: học Toán, nghỉ ngơi, ...)")
     emotion_input = st.selectbox("Cảm xúc khi đó", ["😊 Vui", "😐 Bình thường", "😢 Buồn", "🤔 Suy tư"])
@@ -968,6 +964,10 @@ with tab7:
             })
             st.success("Đã ghi nhận hoạt động!")
             st.rerun()
+
+# ==================== FOOTER ====================
+st.sidebar.markdown("---")
+st.sidebar.caption("InnoMine-X | Hệ thống AI & Robot")
 
 # ==================== FOOTER ====================
 st.sidebar.markdown("---")
