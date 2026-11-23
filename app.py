@@ -350,7 +350,7 @@ if "robot_led" not in st.session_state:
 if "robot_activities" not in st.session_state:
     st.session_state.robot_activities = []
 if "robot_ip" not in st.session_state:
-    st.session_state.robot_ip = "192.168.8.126"
+    st.session_state.robot_ip = "192.168.8.150" # ĐÃ CẬP NHẬT IP MỚI
 if "robot_connected" not in st.session_state:
     st.session_state.robot_connected = False
 
@@ -416,17 +416,17 @@ def handle_voice_command():
     if not cmd:
         return
     cmd = str(cmd).strip().lower()
-    ip = st.session_state.get("robot_ip", "192.168.8.126")
+    ip = st.session_state.get("robot_ip", "192.168.8.150")
     success = error = None
     try:
         if "led" in cmd and "vui" in cmd:
-            requests.get(f"http://{ip}/control?action=led_vui", timeout=2)
+            requests.get(f"http://{ip}/api/led/on", timeout=2)
             success = "😊 Đã bật LED Vui!"
         elif "led" in cmd and "buồn" in cmd:
-            requests.get(f"http://{ip}/control?action=led_buon", timeout=2)
+            requests.get(f"http://{ip}/api/led/on", timeout=2)
             success = "😢 Đã bật LED Buồn!"
         elif "led" in cmd and ("tắt" in cmd or "off" in cmd):
-            requests.get(f"http://{ip}/control?action=led_off", timeout=2)
+            requests.get(f"http://{ip}/api/led/off", timeout=2)
             success = "⏹ Đã tắt LED!"
         elif "rung" in cmd and ("bật" in cmd or "mở" in cmd):
             requests.get(f"http://{ip}/control?action=rung_on", timeout=2)
@@ -911,36 +911,55 @@ with tab7:
             if r.status_code == 200:
                 st.session_state.robot_ip = robot_ip
                 st.session_state.robot_connected = True
-                st.success("✅ Kết nối thành công!")
+                st.success("✅ Kết nối thành công! Camera đã sẵn sàng.")
             else:
                 st.error("❌ Lỗi kết nối")
         except Exception:
-            st.error("❌ Không kết nối được robot")
+            # Nếu API /capture không có, thử ping API /api/led/on để check
+            try:
+                r = requests.get(f"http://{robot_ip}/api/led/off", timeout=3)
+                if r.status_code == 200:
+                    st.session_state.robot_ip = robot_ip
+                    st.session_state.robot_connected = True
+                    st.success("✅ Kết nối thành công (Chế độ API).")
+            except Exception:
+                st.error("❌ Không kết nối được robot. Kiểm tra lại IP và nguồn điện!")
 
     if st.session_state.get("robot_connected"):
-        c1, c2 = st.columns(2)
+        
+        # CAMERA LIVE STREAM
+        st.markdown("#### 📷 Camera Live Stream")
+        # Dùng HTML để nhúng luồng video MJPEG
+        stream_url = f"http://{st.session_state.robot_ip}:81/stream"
+        html_stream = f"""
+        <div style="text-align: center; background-color: #000; border-radius: 10px; padding: 10px;">
+            <img src="{stream_url}" style="width: 100%; max-width: 640px; border-radius: 8px;" onerror="this.style.display='none'; document.getElementById('err').style.display='block';">
+            <p id="err" style="display:none; color: red;">⚠️ Không thể tải luồng video. Hãy chắc chắn bạn đã nạp code CameraWebServer.</p>
+        </div>
+        """
+        st.components.v1.html(html_stream, height=450)
+
+        st.markdown("---")
+        st.markdown("#### 🎮 Bảng điều khiển")
+        
+        c1, c2, c3 = st.columns(3)
         with c1:
-            st.markdown("#### 💡 LED")
-            if st.button("😊 Vui", use_container_width=True):
+            st.markdown("**💡 Đèn LED**")
+            if st.button("😊 Bật Đèn", use_container_width=True):
                 try:
-                    requests.get(f"http://{st.session_state.robot_ip}/control?action=led_vui", timeout=2)
-                    st.success("LED Vui")
+                    requests.get(f"http://{st.session_state.robot_ip}/api/led/on", timeout=2)
+                    st.success("Đã BẬT đèn")
                 except Exception:
                     st.error("Lỗi")
-            if st.button("😢 Buồn", use_container_width=True):
+            if st.button("⏹ Tắt Đèn", use_container_width=True):
                 try:
-                    requests.get(f"http://{st.session_state.robot_ip}/control?action=led_buon", timeout=2)
-                    st.success("LED Buồn")
+                    requests.get(f"http://{st.session_state.robot_ip}/api/led/off", timeout=2)
+                    st.success("Đã TẮT đèn")
                 except Exception:
                     st.error("Lỗi")
-            if st.button("⏹ Tắt LED", use_container_width=True):
-                try:
-                    requests.get(f"http://{st.session_state.robot_ip}/control?action=led_off", timeout=2)
-                    st.success("Tắt LED")
-                except Exception:
-                    st.error("Lỗi")
+        
         with c2:
-            st.markdown("#### ⚡ Relay & Rung")
+            st.markdown("**⚡ Relay**")
             if st.button("🔴 Bật Relay", use_container_width=True):
                 try:
                     requests.get(f"http://{st.session_state.robot_ip}/control?action=relay_on", timeout=2)
@@ -953,26 +972,30 @@ with tab7:
                     st.success("Tắt Relay")
                 except Exception:
                     st.error("Lỗi")
+
+        with c3:
+            st.markdown("**📳 Động cơ rung**")
             if st.button("📳 Bật Rung", use_container_width=True):
                 try:
                     requests.get(f"http://{st.session_state.robot_ip}/control?action=rung_on", timeout=2)
                     st.success("Bật Rung")
                 except Exception:
                     st.error("Lỗi")
-            if st.button("📳 Tắt Rung", use_container_width=True):
+            if st.button("⏹ Tắt Rung", use_container_width=True):
                 try:
                     requests.get(f"http://{st.session_state.robot_ip}/control?action=rung_off", timeout=2)
                     st.success("Tắt Rung")
                 except Exception:
                     st.error("Lỗi")
 
-        st.markdown("#### 📷 Camera")
-        if st.button("📸 Chụp ảnh"):
+        st.markdown("---")
+        st.markdown("#### 📸 Chụp ảnh tĩnh")
+        if st.button("📷 Chụp ảnh"):
             try:
                 r = requests.get(f"http://{st.session_state.robot_ip}/capture", timeout=5)
                 if r.status_code == 200:
                     img = Image.open(io.BytesIO(r.content))
-                    st.image(img, caption="Ảnh từ robot")
+                    st.image(img, caption="Ảnh từ robot", use_column_width=True)
                     st.success("Đã chụp!")
                 else:
                     st.error("Lỗi chụp ảnh")
