@@ -350,7 +350,7 @@ if "robot_led" not in st.session_state:
 if "robot_activities" not in st.session_state:
     st.session_state.robot_activities = []
 if "robot_ip" not in st.session_state:
-    st.session_state.robot_ip = "192.168.8.150" # ĐÃ CẬP NHẬT IP MỚI
+    st.session_state.robot_ip = "192.168.137.128" # ĐÃ CẬP NHẬT IP MỚI
 if "robot_connected" not in st.session_state:
     st.session_state.robot_connected = False
 
@@ -416,32 +416,28 @@ def handle_voice_command():
     if not cmd:
         return
     cmd = str(cmd).strip().lower()
-    ip = st.session_state.get("robot_ip", "192.168.8.150")
+    ip = st.session_state.get("robot_ip", "192.168.137.128")
     success = error = None
     try:
         if "led" in cmd and "vui" in cmd:
-            requests.get(f"http://{ip}/api/led/on", timeout=2)
+            requests.get(f"http://{ip}/on", timeout=2)
             success = "😊 Đã bật LED Vui!"
         elif "led" in cmd and "buồn" in cmd:
-            requests.get(f"http://{ip}/api/led/on", timeout=2)
+            requests.get(f"http://{ip}/on", timeout=2)
             success = "😢 Đã bật LED Buồn!"
         elif "led" in cmd and ("tắt" in cmd or "off" in cmd):
-            requests.get(f"http://{ip}/api/led/off", timeout=2)
+            requests.get(f"http://{ip}/off", timeout=2)
             success = "⏹ Đã tắt LED!"
         elif "rung" in cmd and ("bật" in cmd or "mở" in cmd):
-            requests.get(f"http://{ip}/control?action=rung_on", timeout=2)
-            success = "📳 Đã bật rung!"
+            success = "📳 Lệnh bật rung đã nhận (Sẽ hoạt động khi đấu dây)."
         elif "rung" in cmd and ("tắt" in cmd or "đóng" in cmd):
-            requests.get(f"http://{ip}/control?action=rung_off", timeout=2)
-            success = "📳 Đã tắt rung!"
+            success = "📳 Lệnh tắt rung đã nhận (Sẽ hoạt động khi đấu dây)."
         elif "relay" in cmd and ("bật" in cmd or "mở" in cmd):
-            requests.get(f"http://{ip}/control?action=relay_on", timeout=2)
-            success = "🔴 Đã bật Relay!"
+            success = "🔴 Lệnh bật Relay đã nhận (Sẽ hoạt động khi đấu dây)."
         elif "relay" in cmd and ("tắt" in cmd or "đóng" in cmd):
-            requests.get(f"http://{ip}/control?action=relay_off", timeout=2)
-            success = "⚫ Đã tắt Relay!"
+            success = "⚫ Lệnh tắt Relay đã nhận (Sẽ hoạt động khi đấu dây)."
         elif "chụp" in cmd or "ảnh" in cmd:
-            success = "📸 Đã nhận lệnh chụp ảnh. Bấm nút thủ công nhé!"
+            success = "📸 Lệnh chụp ảnh đã nhận (Chưa hỗ trợ)."
         else:
             error = f"🤔 Không hiểu lệnh: '{cmd}'. Thử 'Bật LED vui', 'Tắt rung'..."
     except Exception as e:
@@ -907,7 +903,7 @@ with tab7:
     robot_ip = st.text_input("Địa chỉ IP robot", st.session_state.robot_ip)
     if st.button("🔗 Kết nối"):
         try:
-            r = requests.get(f"http://{robot_ip}/capture", timeout=3)
+            r = requests.get(f"http://{robot_ip}/", timeout=3) # Sửa về API gốc
             if r.status_code == 200:
                 st.session_state.robot_ip = robot_ip
                 st.session_state.robot_connected = True
@@ -915,26 +911,18 @@ with tab7:
             else:
                 st.error("❌ Lỗi kết nối")
         except Exception:
-            # Nếu API /capture không có, thử ping API /api/led/on để check
-            try:
-                r = requests.get(f"http://{robot_ip}/api/led/off", timeout=3)
-                if r.status_code == 200:
-                    st.session_state.robot_ip = robot_ip
-                    st.session_state.robot_connected = True
-                    st.success("✅ Kết nối thành công (Chế độ API).")
-            except Exception:
-                st.error("❌ Không kết nối được robot. Kiểm tra lại IP và nguồn điện!")
+            st.error("❌ Không kết nối được robot. Kiểm tra lại IP, Hotspot, và nguồn điện!")
 
     if st.session_state.get("robot_connected"):
         
         # CAMERA LIVE STREAM
         st.markdown("#### 📷 Camera Live Stream")
-        # Dùng HTML để nhúng luồng video MJPEG
-        stream_url = f"http://{st.session_state.robot_ip}:81/stream"
+        # Cập nhật cổng 80 khớp với code Arduino
+        stream_url = f"http://{st.session_state.robot_ip}/stream"
         html_stream = f"""
         <div style="text-align: center; background-color: #000; border-radius: 10px; padding: 10px;">
             <img src="{stream_url}" style="width: 100%; max-width: 640px; border-radius: 8px;" onerror="this.style.display='none'; document.getElementById('err').style.display='block';">
-            <p id="err" style="display:none; color: red;">⚠️ Không thể tải luồng video. Hãy chắc chắn bạn đã nạp code CameraWebServer.</p>
+            <p id="err" style="display:none; color: red;">⚠️ Không thể tải luồng video.</p>
         </div>
         """
         st.components.v1.html(html_stream, height=450)
@@ -947,13 +935,13 @@ with tab7:
             st.markdown("**💡 Đèn LED**")
             if st.button("😊 Bật Đèn", use_container_width=True):
                 try:
-                    requests.get(f"http://{st.session_state.robot_ip}/api/led/on", timeout=2)
+                    requests.get(f"http://{st.session_state.robot_ip}/on", timeout=2) # Cập nhật API /on
                     st.success("Đã BẬT đèn")
                 except Exception:
                     st.error("Lỗi")
             if st.button("⏹ Tắt Đèn", use_container_width=True):
                 try:
-                    requests.get(f"http://{st.session_state.robot_ip}/api/led/off", timeout=2)
+                    requests.get(f"http://{st.session_state.robot_ip}/off", timeout=2) # Cập nhật API /off
                     st.success("Đã TẮT đèn")
                 except Exception:
                     st.error("Lỗi")
@@ -961,46 +949,20 @@ with tab7:
         with c2:
             st.markdown("**⚡ Relay**")
             if st.button("🔴 Bật Relay", use_container_width=True):
-                try:
-                    requests.get(f"http://{st.session_state.robot_ip}/control?action=relay_on", timeout=2)
-                    st.success("Bật Relay")
-                except Exception:
-                    st.error("Lỗi")
+                st.info("Sẽ kích hoạt vào ngày mai khi đấu dây.")
             if st.button("⚫ Tắt Relay", use_container_width=True):
-                try:
-                    requests.get(f"http://{st.session_state.robot_ip}/control?action=relay_off", timeout=2)
-                    st.success("Tắt Relay")
-                except Exception:
-                    st.error("Lỗi")
+                st.info("Sẽ kích hoạt vào ngày mai khi đấu dây.")
 
         with c3:
             st.markdown("**📳 Động cơ rung**")
             if st.button("📳 Bật Rung", use_container_width=True):
-                try:
-                    requests.get(f"http://{st.session_state.robot_ip}/control?action=rung_on", timeout=2)
-                    st.success("Bật Rung")
-                except Exception:
-                    st.error("Lỗi")
+                st.info("Sẽ kích hoạt vào ngày mai khi đấu dây.")
             if st.button("⏹ Tắt Rung", use_container_width=True):
-                try:
-                    requests.get(f"http://{st.session_state.robot_ip}/control?action=rung_off", timeout=2)
-                    st.success("Tắt Rung")
-                except Exception:
-                    st.error("Lỗi")
+                st.info("Sẽ kích hoạt vào ngày mai khi đấu dây.")
 
         st.markdown("---")
         st.markdown("#### 📸 Chụp ảnh tĩnh")
-        if st.button("📷 Chụp ảnh"):
-            try:
-                r = requests.get(f"http://{st.session_state.robot_ip}/capture", timeout=5)
-                if r.status_code == 200:
-                    img = Image.open(io.BytesIO(r.content))
-                    st.image(img, caption="Ảnh từ robot", use_column_width=True)
-                    st.success("Đã chụp!")
-                else:
-                    st.error("Lỗi chụp ảnh")
-            except Exception:
-                st.error("Lỗi kết nối")
+        st.info("Chức năng chụp ảnh tĩnh đang được cập nhật.")
 
         if st.session_state.robot_activities:
             st.markdown("#### 📋 Hoạt động gần đây")
