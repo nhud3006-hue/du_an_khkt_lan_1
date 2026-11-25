@@ -420,13 +420,13 @@ def handle_voice_command():
     success = error = None
     try:
         if "led" in cmd and "vui" in cmd:
-            requests.get(f"http://{ip}/on", timeout=2)
+            requests.get(f"http://{ip}/on", timeout=5)
             success = "😊 Đã bật LED Vui!"
         elif "led" in cmd and "buồn" in cmd:
-            requests.get(f"http://{ip}/on", timeout=2)
+            requests.get(f"http://{ip}/on", timeout=5)
             success = "😢 Đã bật LED Buồn!"
         elif "led" in cmd and ("tắt" in cmd or "off" in cmd):
-            requests.get(f"http://{ip}/off", timeout=2)
+            requests.get(f"http://{ip}/off", timeout=5)
             success = "⏹ Đã tắt LED!"
         elif "rung" in cmd and ("bật" in cmd or "mở" in cmd):
             success = "📳 Lệnh bật rung đã nhận (Sẽ hoạt động khi đấu dây)."
@@ -903,29 +903,31 @@ with tab7:
     robot_ip = st.text_input("Địa chỉ IP robot", st.session_state.robot_ip)
     if st.button("🔗 Kết nối"):
         try:
-            r = requests.get(f"http://{robot_ip}/", timeout=3) # Sửa về API gốc
+            r = requests.get(f"http://{robot_ip}/", timeout=5) # Tăng timeout lên 5s
             if r.status_code == 200:
                 st.session_state.robot_ip = robot_ip
                 st.session_state.robot_connected = True
                 st.success("✅ Kết nối thành công! Camera đã sẵn sàng.")
             else:
-                st.error("❌ Lỗi kết nối")
-        except Exception:
-            st.error("❌ Không kết nối được robot. Kiểm tra lại IP, Hotspot, và nguồn điện!")
+                st.error(f"❌ Lỗi kết nối (Mã: {r.status_code})")
+        except Exception as e:
+            st.error(f"❌ Không kết nối được robot. Chi tiết: {e}")
 
     if st.session_state.get("robot_connected"):
         
-        # CAMERA LIVE STREAM
+        # NÂNG CẤP: Nút bật/tắt Camera để giảm tải cho ESP32
         st.markdown("#### 📷 Camera Live Stream")
-        # Cập nhật cổng 80 khớp với code Arduino
-        stream_url = f"http://{st.session_state.robot_ip}/stream"
-        html_stream = f"""
-        <div style="text-align: center; background-color: #000; border-radius: 10px; padding: 10px;">
-            <img src="{stream_url}" style="width: 100%; max-width: 640px; border-radius: 8px;" onerror="this.style.display='none'; document.getElementById('err').style.display='block';">
-            <p id="err" style="display:none; color: red;">⚠️ Không thể tải luồng video.</p>
-        </div>
-        """
-        st.components.v1.html(html_stream, height=450)
+        show_stream = st.checkbox("Bật Camera Live (Tắt đi để bấm nút điều khiển mượt hơn)", value=True)
+        
+        if show_stream:
+            stream_url = f"http://{st.session_state.robot_ip}/stream"
+            html_stream = f"""
+            <div style="text-align: center; background-color: #000; border-radius: 10px; padding: 10px;">
+                <img src="{stream_url}" style="width: 100%; max-width: 640px; border-radius: 8px;" onerror="this.style.display='none'; document.getElementById('err').style.display='block';">
+                <p id="err" style="display:none; color: red;">⚠️ Không thể tải luồng video.</p>
+            </div>
+            """
+            st.components.v1.html(html_stream, height=450)
 
         st.markdown("---")
         st.markdown("#### 🎮 Bảng điều khiển")
@@ -935,16 +937,21 @@ with tab7:
             st.markdown("**💡 Đèn LED**")
             if st.button("😊 Bật Đèn", use_container_width=True):
                 try:
-                    requests.get(f"http://{st.session_state.robot_ip}/on", timeout=2) # Cập nhật API /on
+                    # NÂNG CẤP: Tăng timeout lên 5s và báo lỗi chi tiết
+                    requests.get(f"http://{st.session_state.robot_ip}/on", timeout=5) 
                     st.success("Đã BẬT đèn")
-                except Exception:
-                    st.error("Lỗi")
+                except requests.exceptions.Timeout:
+                    st.warning("ESP32 đang bận xử lý video, hãy thử TẮT Camera Live rồi bấm lại!")
+                except Exception as e:
+                    st.error(f"Lỗi: {e}")
             if st.button("⏹ Tắt Đèn", use_container_width=True):
                 try:
-                    requests.get(f"http://{st.session_state.robot_ip}/off", timeout=2) # Cập nhật API /off
+                    requests.get(f"http://{st.session_state.robot_ip}/off", timeout=5)
                     st.success("Đã TẮT đèn")
-                except Exception:
-                    st.error("Lỗi")
+                except requests.exceptions.Timeout:
+                    st.warning("ESP32 đang bận xử lý video, hãy thử TẮT Camera Live rồi bấm lại!")
+                except Exception as e:
+                    st.error(f"Lỗi: {e}")
         
         with c2:
             st.markdown("**⚡ Relay**")
